@@ -155,4 +155,19 @@ export class JobApplicationService {
       this.http.delete(`${API_URL}/${applicationId}/resumes/${resumeId}`)
     );
   }
-}
+
+  async downloadResumePDF(applicationId: number, resumeId: number, filename?: string): Promise<void> {
+    const response = await firstValueFrom(
+      this.http.get(`${API_URL}/${applicationId}/resumes/${resumeId}/export`, {
+        responseType: 'blob'
+      })
+    );
+    
+    const blob = new Blob([response], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || `resume-v${resumeId}.pdf`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }}

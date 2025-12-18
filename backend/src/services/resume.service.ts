@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { prisma } from "../db/prisma";
 import { config } from "../config";
+import PDFDocument from "pdfkit";
 
 export class ResumeService {
   private client = new OpenAI({ apiKey: config.openAiKey });
@@ -285,6 +286,139 @@ export class ResumeService {
         timestamp: new Date().toISOString()
       }
     };
+  }
+
+  async generatePDF(resumeContent: any): Promise<Buffer> {
+    const doc = new PDFDocument({
+      size: "A4",
+      margin: 50,
+      bufferPages: true
+    });
+
+    const buffer: Buffer[] = [];
+    doc.on("data", (chunk: Buffer) => buffer.push(chunk));
+
+    const pageWidth = 595; // A4 width in points
+    const contentWidth = pageWidth - 100; // Left and right margins of 50
+    const margin = 50;
+
+    // Helper: draw a horizontal line
+    const drawLine = () => {
+      doc.strokeColor("#cccccc").moveTo(margin, doc.y).lineTo(pageWidth - margin, doc.y).stroke();
+    };
+
+    // Header: Title (extract job title from summary)
+    const titleParts = resumeContent.summary?.split(" | ") || [];
+    const title = titleParts[0]?.replace("Target Role: ", "") || "Resume";
+    
+    doc.fontSize(18).font("Helvetica-Bold").fillColor("#1a1a1a").text(title);
+    doc.moveDown(0.3);
+    
+    // Summary text
+    if (titleParts[1]) {
+      doc.fontSize(10).font("Helvetica").fillColor("#555555");
+      doc.text(titleParts[1], { width: contentWidth, align: "left" });
+    }
+    
+    doc.moveDown(0.5);
+    drawLine();
+    doc.moveDown(0.8);
+
+    // Skills Section
+    if (resumeContent.skills && resumeContent.skills.length > 0) {
+      doc.fontSize(12).font("Helvetica-Bold").fillColor("#000000").text("SKILLS");
+      doc.moveDown(0.3);
+      doc.fontSize(10).font("Helvetica").fillColor("#333333");
+      
+      const skillsText = resumeContent.skills.slice(0, 35).join(" • ");
+      doc.text(skillsText, { width: contentWidth, align: "left", lineGap: 4 });
+      
+      doc.moveDown(0.6);
+      drawLine();
+      doc.moveDown(0.8);
+    }
+
+    // Experience Section
+    if (resumeContent.experience && resumeContent.experience.length > 0) {
+      doc.fontSize(12).font("Helvetica-Bold").fillColor("#000000").text("EXPERIENCE");
+      doc.moveDown(0.3);
+
+      resumeContent.experience.slice(0, 4).forEach((exp: any, index: number) => {
+        // Company and Role
+        doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000").text(`${exp.role} at ${exp.company}`);
+        
+        // Dates
+        doc.fontSize(9).font("Helvetica").fillColor("#666666");
+        doc.text(`${exp.start} – ${exp.end || "Present"}`, { lineGap: 2 });
+        
+        // Bullets
+        if (exp.bullets && exp.bullets.length > 0) {
+          doc.moveDown(0.2);
+          doc.fontSize(9).fillColor("#333333");
+          exp.bullets.slice(0, 4).forEach((bullet: string) => {
+            doc.text(`• ${bullet}`, { width: contentWidth - 20, indent: 20, lineGap: 3 });
+          });
+        }
+        
+        if (index < resumeContent.experience.length - 1) {
+          doc.moveDown(0.4);
+        } else {
+          doc.moveDown(0.2);
+        }
+      });
+
+      doc.moveDown(0.4);
+      drawLine();
+      doc.moveDown(0.8);
+    }
+
+    // Projects Section
+    if (resumeContent.projects && resumeContent.projects.length > 0) {
+      doc.fontSize(12).font("Helvetica-Bold").fillColor("#000000").text("PROJECTS");
+      doc.moveDown(0.3);
+
+      resumeContent.projects.slice(0, 3).forEach((proj: any, index: number) => {
+        // Project Title
+        doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000").text(proj.title);
+        
+        // Description
+        if (proj.description) {
+          doc.fontSize(9).font("Helvetica").fillColor("#333333");
+          doc.text(proj.description, { width: contentWidth, lineGap: 2 });
+        }
+        
+        // Technologies
+        if (proj.tech && proj.tech.length > 0) {
+          doc.fontSize(8).fillColor("#666666");
+          doc.text(`Tech: ${proj.tech.join(", ")}`, { lineGap: 1 });
+        }
+        
+        if (index < resumeContent.projects.length - 1) {
+          doc.moveDown(0.4);
+        }
+      });
+
+      doc.moveDown(0.4);
+    }
+
+    // Footer with page numbers
+    const pages = doc.bufferedPageRange().count;
+    for (let i = 0; i < pages; i++) {
+      doc.switchToPage(i);
+      doc.fontSize(8).fillColor("#999999").text(
+        `Page ${i + 1} of ${pages}`,
+        margin,
+        doc.page.height - 30,
+        { width: contentWidth, align: "center" }
+      );
+    }
+
+    doc.end();
+
+    return new Promise((resolve, reject) => {
+      doc.on("end", () => resolve(Buffer.concat(buffer)));
+      doc.on("error", reject);
+    });
   }
 }
 

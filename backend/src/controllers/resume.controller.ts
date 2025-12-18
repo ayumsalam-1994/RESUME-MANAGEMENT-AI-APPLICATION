@@ -88,3 +88,26 @@ export async function deleteResume(req: Request, res: Response) {
     res.status(500).json({ error: error.message });
   }
 }
+
+// Export resume as PDF
+export async function exportResumePDF(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const resumeId = Number(req.params.resumeId);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (Number.isNaN(resumeId)) return res.status(400).json({ error: "Invalid resume id" });
+
+    const resume = await resumeService.getResume(resumeId, userId);
+    if (!resume) return res.status(404).json({ error: "Resume not found" });
+
+    const resumeContent = typeof resume.content === "string" ? JSON.parse(resume.content) : resume.content;
+    const pdfBuffer = await resumeService.generatePDF(resumeContent);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="resume-v${resume.version}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    console.error("PDF export error:", error);
+    res.status(500).json({ error: error.message });
+  }
+}

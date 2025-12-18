@@ -209,6 +209,7 @@ import { ProjectService } from '../../core/services/project.service';
                           <div class="resume-meta">
                             <strong>Version {{ resume.version }}</strong>
                             <span>• {{ resume.createdAt | date: 'MMM dd, yyyy HH:mm' }}</span>
+                            <button class="success tiny" (click)="exportResumePDF(app.id, resume.id)">Export PDF</button>
                             <button class="danger tiny" (click)="deleteResumeVersion(app.id, resume.id)">Delete</button>
                           </div>
                           @if (!rawPanels[app.id]) {
@@ -570,6 +571,10 @@ import { ProjectService } from '../../core/services/project.service';
 
       &.danger {
         background: #dc3545;
+      }
+
+      &.success {
+        background: #28a745;
       }
 
       &.ghost {
@@ -1085,6 +1090,16 @@ Guidelines:
     } catch (error: any) {
       console.error('Failed to delete resume:', error);
       alert('Failed to delete resume.');
+    }
+  }
+
+  async exportResumePDF(applicationId: number, resumeId: number): Promise<void> {
+    try {
+      await this.applicationService.downloadResumePDF(applicationId, resumeId);
+      alert('Resume PDF downloaded.');
+    } catch (error: any) {
+      console.error('Failed to download PDF:', error);
+      alert('Failed to download PDF.');
     }
   }
 }
