@@ -100,7 +100,11 @@ export async function addEducation(req: Request, res: Response) {
 // Update education
 export async function updateEducation(req: Request, res: Response) {
   try {
-    const { educationId } = req.params;
+    const educationId = Number(req.params.educationId);
+    if (Number.isNaN(educationId)) {
+      return res.status(400).json({ error: 'Invalid education id' });
+    }
+
     const data = EducationSchema.partial().parse(req.body);
 
     const education = await profileService.updateEducation(educationId, data);
@@ -116,7 +120,11 @@ export async function updateEducation(req: Request, res: Response) {
 // Delete education
 export async function deleteEducation(req: Request, res: Response) {
   try {
-    const { educationId } = req.params;
+    const educationId = Number(req.params.educationId);
+    if (Number.isNaN(educationId)) {
+      return res.status(400).json({ error: 'Invalid education id' });
+    }
+
     await profileService.deleteEducation(educationId);
     res.json({ success: true });
   } catch (error: any) {
@@ -167,7 +175,11 @@ export async function removeSkill(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { skillId } = req.params;
+    const skillId = Number(req.params.skillId);
+    if (Number.isNaN(skillId)) {
+      return res.status(400).json({ error: 'Invalid skill id' });
+    }
+
     await profileService.removeSkill(userId, skillId);
 
     res.json({ success: true });

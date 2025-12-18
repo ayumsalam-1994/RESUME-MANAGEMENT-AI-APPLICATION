@@ -2,7 +2,7 @@ import { prisma } from '../db/prisma';
 
 export class ExperienceService {
   // Get all experiences for user
-  async getUserExperiences(userId: string) {
+  async getUserExperiences(userId: number) {
     const experiences = await prisma.experience.findMany({
       where: { userId },
       include: {
@@ -17,7 +17,7 @@ export class ExperienceService {
   }
 
   // Get single experience with bullets
-  async getExperience(experienceId: string) {
+  async getExperience(experienceId: number) {
     const experience = await prisma.experience.findUnique({
       where: { id: experienceId },
       include: {
@@ -36,7 +36,7 @@ export class ExperienceService {
 
   // Create experience
   async createExperience(
-    userId: string,
+    userId: number,
     data: {
       company: string;
       position: string;
@@ -64,7 +64,7 @@ export class ExperienceService {
 
   // Update experience
   async updateExperience(
-    experienceId: string,
+    experienceId: number,
     data: Record<string, unknown>
   ) {
     const experience = await prisma.experience.update({
@@ -81,7 +81,7 @@ export class ExperienceService {
   }
 
   // Delete experience (cascades to bullets)
-  async deleteExperience(experienceId: string) {
+  async deleteExperience(experienceId: number) {
     await prisma.experience.delete({
       where: { id: experienceId },
     });
@@ -91,7 +91,7 @@ export class ExperienceService {
 
   // Add bullet point
   async addBullet(
-    experienceId: string,
+    experienceId: number,
     data: {
       content: string;
       order?: number;
@@ -119,7 +119,7 @@ export class ExperienceService {
 
   // Update bullet
   async updateBullet(
-    bulletId: string,
+    bulletId: number,
     data: {
       content?: string;
       order?: number;
@@ -134,7 +134,7 @@ export class ExperienceService {
   }
 
   // Delete bullet
-  async deleteBullet(bulletId: string) {
+  async deleteBullet(bulletId: number) {
     await prisma.experienceBullet.delete({
       where: { id: bulletId },
     });
@@ -144,8 +144,8 @@ export class ExperienceService {
 
   // Reorder bullets
   async reorderBullets(
-    experienceId: string,
-    bulletIds: string[]
+    experienceId: number,
+    bulletIds: number[]
   ) {
     // Update order for each bullet
     const updates = bulletIds.map((id, index) =>
@@ -167,7 +167,7 @@ export class ExperienceService {
   }
 
   // Get experiences by company
-  async getExperiencesByCompany(userId: string, company: string) {
+  async getExperiencesByCompany(userId: number, company: string) {
     const experiences = await prisma.experience.findMany({
       where: { userId, company },
       include: {

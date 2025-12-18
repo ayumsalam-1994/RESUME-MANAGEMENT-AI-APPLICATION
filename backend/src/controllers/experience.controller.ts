@@ -19,7 +19,7 @@ const BulletSchema = z.object({
 });
 
 const ReorderSchema = z.object({
-  bulletIds: z.array(z.string()),
+  bulletIds: z.array(z.number()),
 });
 
 // Get all experiences for user
@@ -40,7 +40,11 @@ export async function getUserExperiences(req: Request, res: Response) {
 // Get single experience
 export async function getExperience(req: Request, res: Response) {
   try {
-    const { experienceId } = req.params;
+    const experienceId = Number(req.params.experienceId);
+    if (Number.isNaN(experienceId)) {
+      return res.status(400).json({ error: 'Invalid experience id' });
+    }
+
     const experience = await experienceService.getExperience(experienceId);
     res.json(experience);
   } catch (error: any) {
@@ -71,7 +75,11 @@ export async function createExperience(req: Request, res: Response) {
 // Update experience
 export async function updateExperience(req: Request, res: Response) {
   try {
-    const { experienceId } = req.params;
+    const experienceId = Number(req.params.experienceId);
+    if (Number.isNaN(experienceId)) {
+      return res.status(400).json({ error: 'Invalid experience id' });
+    }
+
     const data = ExperienceSchema.partial().parse(req.body);
 
     const experience = await experienceService.updateExperience(
@@ -90,7 +98,11 @@ export async function updateExperience(req: Request, res: Response) {
 // Delete experience
 export async function deleteExperience(req: Request, res: Response) {
   try {
-    const { experienceId } = req.params;
+    const experienceId = Number(req.params.experienceId);
+    if (Number.isNaN(experienceId)) {
+      return res.status(400).json({ error: 'Invalid experience id' });
+    }
+
     await experienceService.deleteExperience(experienceId);
     res.json({ success: true });
   } catch (error: any) {
@@ -101,7 +113,11 @@ export async function deleteExperience(req: Request, res: Response) {
 // Add bullet point
 export async function addBullet(req: Request, res: Response) {
   try {
-    const { experienceId } = req.params;
+    const experienceId = Number(req.params.experienceId);
+    if (Number.isNaN(experienceId)) {
+      return res.status(400).json({ error: 'Invalid experience id' });
+    }
+
     const data = BulletSchema.parse(req.body);
 
     const bullet = await experienceService.addBullet(experienceId, data);
@@ -117,7 +133,11 @@ export async function addBullet(req: Request, res: Response) {
 // Update bullet
 export async function updateBullet(req: Request, res: Response) {
   try {
-    const { bulletId } = req.params;
+    const bulletId = Number(req.params.bulletId);
+    if (Number.isNaN(bulletId)) {
+      return res.status(400).json({ error: 'Invalid bullet id' });
+    }
+
     const data = BulletSchema.partial().parse(req.body);
 
     const bullet = await experienceService.updateBullet(bulletId, data);
@@ -133,7 +153,11 @@ export async function updateBullet(req: Request, res: Response) {
 // Delete bullet
 export async function deleteBullet(req: Request, res: Response) {
   try {
-    const { bulletId } = req.params;
+    const bulletId = Number(req.params.bulletId);
+    if (Number.isNaN(bulletId)) {
+      return res.status(400).json({ error: 'Invalid bullet id' });
+    }
+
     await experienceService.deleteBullet(bulletId);
     res.json({ success: true });
   } catch (error: any) {
@@ -144,7 +168,11 @@ export async function deleteBullet(req: Request, res: Response) {
 // Reorder bullets
 export async function reorderBullets(req: Request, res: Response) {
   try {
-    const { experienceId } = req.params;
+    const experienceId = Number(req.params.experienceId);
+    if (Number.isNaN(experienceId)) {
+      return res.status(400).json({ error: 'Invalid experience id' });
+    }
+
     const { bulletIds } = ReorderSchema.parse(req.body);
 
     const bullets = await experienceService.reorderBullets(

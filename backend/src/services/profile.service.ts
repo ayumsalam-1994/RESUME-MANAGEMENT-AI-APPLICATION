@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 export class ProfileService {
   // Get user profile with all related data
-  async getProfile(userId: string) {
+  async getProfile(userId: number) {
     const profile = await prisma.profile.findUnique({
       where: { userId },
       include: {
@@ -25,7 +25,7 @@ export class ProfileService {
 
   // Create or update profile
   async upsertProfile(
-    userId: string,
+    userId: number,
     data: Record<string, unknown>
   ) {
     const profile = await prisma.profile.upsert({
@@ -47,7 +47,7 @@ export class ProfileService {
 
   // Add education
   async addEducation(
-    userId: string,
+    userId: number,
     data: Record<string, unknown>
   ) {
     const profile = await prisma.profile.findUnique({
@@ -69,7 +69,7 @@ export class ProfileService {
   }
 
   // Update education
-  async updateEducation(educationId: string, data: Record<string, unknown>) {
+  async updateEducation(educationId: number, data: Record<string, unknown>) {
     const education = await prisma.education.update({
       where: { id: educationId },
       data,
@@ -79,7 +79,7 @@ export class ProfileService {
   }
 
   // Delete education
-  async deleteEducation(educationId: string) {
+  async deleteEducation(educationId: number) {
     await prisma.education.delete({
       where: { id: educationId },
     });
@@ -88,7 +88,7 @@ export class ProfileService {
   }
 
   // Get all education for user
-  async getUserEducation(userId: string) {
+  async getUserEducation(userId: number) {
     const profile = await prisma.profile.findUnique({
       where: { userId },
     });
@@ -106,7 +106,7 @@ export class ProfileService {
   }
 
   // Add skill to user
-  async addSkill(userId: string, skillData: { name: string; category?: string; level: string }) {
+  async addSkill(userId: number, skillData: { name: string; category?: string; level: string }) {
     // Get or create skill
     let skill = await prisma.skill.findUnique({
       where: { name: skillData.name },
@@ -141,7 +141,7 @@ export class ProfileService {
   }
 
   // Remove skill from user
-  async removeSkill(userId: string, skillId: string) {
+  async removeSkill(userId: number, skillId: number) {
     await prisma.userSkill.delete({
       where: {
         userId_skillId: {
@@ -155,7 +155,7 @@ export class ProfileService {
   }
 
   // Get all user skills
-  async getUserSkills(userId: string) {
+  async getUserSkills(userId: number) {
     const userSkills = await prisma.userSkill.findMany({
       where: { userId },
       include: {
