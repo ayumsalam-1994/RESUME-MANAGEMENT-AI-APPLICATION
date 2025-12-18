@@ -157,6 +157,37 @@ export class ProjectService {
     return image;
   }
 
+  async uploadImage(
+    projectId: number,
+    file: File,
+    caption?: string,
+    order?: number
+  ): Promise<ProjectImage> {
+    const formData = new FormData();
+    formData.append('image', file);
+    if (caption) {
+      formData.append('caption', caption);
+    }
+    if (order !== undefined) {
+      formData.append('order', String(order));
+    }
+
+    const image = await firstValueFrom(
+      this.http.post<ProjectImage>(`${API_URL}/${projectId}/images/upload`, formData)
+    );
+
+    this.projectsSignal.update((list) =>
+      list.map((p) => {
+        if (p.id === projectId) {
+          return { ...p, images: [...p.images, image].sort((a, b) => a.order - b.order) };
+        }
+        return p;
+      })
+    );
+
+    return image;
+  }
+
   async deleteImage(projectId: number, imageId: number): Promise<void> {
     await firstValueFrom(this.http.delete(`${API_URL}/images/${imageId}`));
 

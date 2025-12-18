@@ -1,5 +1,7 @@
 import cors from "cors";
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import type { Request, Response } from "express";
 
 import { config } from "./config.js";
@@ -10,6 +12,8 @@ import experienceRoutes from "./routes/experience.routes.js";
 import projectRoutes from "./routes/project.routes.js";
 
 const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadsPath = path.join(__dirname, "..", "uploads");
 
 app.use(
   cors({
@@ -18,6 +22,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use("/uploads", express.static(uploadsPath));
 
 // Routes
 app.get("/health", (_req: Request, res: Response) => {

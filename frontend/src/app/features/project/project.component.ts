@@ -39,7 +39,7 @@ import {
 
       @if (projectForm) {
         <div class="project-list">
-          @for (project of projectService.projectsSignal(); track project.id) {
+          @for (project of projectService.projectsSignal(); track project.id; let idx = $index) {
             <div class="project-card" [class.archived]="project.archived">
               @if (editingId === project.id) {
                 <!-- Edit Form -->
@@ -138,13 +138,17 @@ import {
                 <!-- Images -->
                 @if (project.images.length) {
                   <div class="images">
-                    @for (img of project.images; track img.id) {
+                    @for (img of project.images; track img.id; let imgIndex = $index) {
                       <div class="image-item">
                         <a [href]="img.url" target="_blank" rel="noopener">Image {{ img.order + 1 }}</a>
                         @if (img.caption) {
                           <p class="caption">{{ img.caption }}</p>
                         }
-                        <button class="danger small" (click)="deleteImage(project.id, img.id)">Delete</button>
+                        <div class="actions">
+                          <button class="ghost small" (click)="moveImage(project.id, img.id, 'up')" [disabled]="imgIndex === 0">↑ Move Up</button>
+                          <button class="ghost small" (click)="moveImage(project.id, img.id, 'down')" [disabled]="imgIndex === project.images.length - 1">↓ Move Down</button>
+                          <button class="danger small" (click)="deleteImage(project.id, img.id)">Delete</button>
+                        </div>
                       </div>
                     }
                   </div>
@@ -156,13 +160,21 @@ import {
                     <div class="form-row">
                       <div class="form-group">
                         <label>Image URL</label>
-                        <input formControlName="url" type="url" />
+                        <input formControlName="url" type="url" placeholder="https://..." />
+                      </div>
+                      <div class="form-group">
+                        <label>Upload Image</label>
+                        <input type="file" accept="image/*" (change)="onImageFileChange($event)" />
+                        @if (imageFile) {
+                          <p class="hint">Selected: {{ imageFile.name }}</p>
+                        }
                       </div>
                       <div class="form-group">
                         <label>Caption</label>
                         <input formControlName="caption" type="text" />
                       </div>
                     </div>
+                    <p class="hint">Provide a URL or upload a file (max 5MB).</p>
                     <div class="actions">
                       <button type="submit" class="primary small">Add Image</button>
                       <button type="button" class="small" (click)="cancelImage()">Cancel</button>
@@ -173,6 +185,8 @@ import {
                 }
 
                 <div class="actions">
+                  <button class="ghost" (click)="moveProject(project.id, 'up')" [disabled]="idx === 0">↑ Move Up</button>
+                  <button class="ghost" (click)="moveProject(project.id, 'down')" [disabled]="idx === projectService.projectsSignal().length - 1">↓ Move Down</button>
                   <button class="secondary" (click)="startEdit(project)">Edit</button>
                   <button class="danger" (click)="deleteProjectItem(project.id)">Delete</button>
                   <button class="ghost" (click)="toggleArchive(project)">
@@ -382,6 +396,12 @@ import {
       color: #555;
     }
 
+    .hint {
+      margin: 4px 0;
+      color: #666;
+      font-size: 12px;
+    }
+
     .actions {
       display: flex;
       flex-wrap: wrap;
@@ -460,6 +480,7 @@ export class ProjectComponent implements OnInit {
   editingId: number | null = null;
   addingImageFor: number | null = null;
   includeArchived = false;
+  imageFile: File | null = null;
 
   constructor(
     public projectService: ProjectService,
@@ -486,7 +507,7 @@ export class ProjectComponent implements OnInit {
     });
 
     this.imageForm = this.fb.group({
-      url: ['', Validators.required],
+      url: [''],
       caption: ['']
     });
   }
@@ -571,16 +592,46 @@ export class ProjectComponent implements OnInit {
     }
   }
 
+  async moveProject(projectId: number, direction: 'up' | 'down'): Promise<void> {
+    const projects = [...this.projectService.projectsSignal()];
+    const index = projects.findIndex((p) => p.id === projectId);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= projects.length) return;
+
+    [projects[index], projects[targetIndex]] = [projects[targetIndex], projects[index]];
+    const reordered = projects.map((p, i) => ({ ...p, order: i }));
+    this.projectService.projectsSignal.set(reordered);
+
+    try {
+      await this.projectService.reorderProjects(reordered.map((p) => p.id));
+    } catch (error) {
+      console.error('Failed to reorder projects:', error);
+    }
+  }
+
   startAddImage(projectId: number): void {
     this.addingImageFor = projectId;
     this.imageForm?.reset();
+    this.imageFile = null;
   }
 
   async addImage(projectId: number): Promise<void> {
-    if (!this.imageForm?.valid) return;
+    if (!this.imageForm?.valid && !this.imageFile) return;
 
     try {
-      await this.projectService.addImage(projectId, this.imageForm.value);
+      const caption = this.imageForm?.value.caption as string | undefined;
+      const url = this.imageForm?.value.url as string | undefined;
+
+      if (this.imageFile) {
+        await this.projectService.uploadImage(projectId, this.imageFile, caption);
+      } else if (url) {
+        await this.projectService.addImage(projectId, { url, caption });
+      } else {
+        return;
+      }
+
       this.cancelImage();
       alert('Image added successfully!');
     } catch (error) {
@@ -603,12 +654,46 @@ export class ProjectComponent implements OnInit {
     this.isAddingNew = false;
     this.editingId = null;
     this.addingImageFor = null;
+    this.imageFile = null;
     this.projectForm?.reset({ archived: false });
     this.imageForm?.reset();
   }
 
   cancelImage(): void {
     this.addingImageFor = null;
+    this.imageFile = null;
     this.imageForm?.reset();
+  }
+
+  async moveImage(projectId: number, imageId: number, direction: 'up' | 'down'): Promise<void> {
+    const projects = this.projectService.projectsSignal();
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+
+    const images = [...project.images];
+    const index = images.findIndex((img) => img.id === imageId);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= images.length) return;
+
+    [images[index], images[targetIndex]] = [images[targetIndex], images[index]];
+    const normalized = images.map((img, i) => ({ ...img, order: i }));
+    const updatedProjects = projects.map((p) =>
+      p.id === projectId ? { ...p, images: normalized } : p
+    );
+    this.projectService.projectsSignal.set(updatedProjects);
+
+    try {
+      await this.projectService.reorderImages(projectId, normalized.map((img) => img.id));
+    } catch (error) {
+      console.error('Failed to reorder images:', error);
+    }
+  }
+
+  onImageFileChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    this.imageFile = file ?? null;
   }
 }

@@ -7,7 +7,7 @@ export class ProfileService {
     const profile = await prisma.profile.findUnique({
       where: { userId },
       include: {
-        education: {
+        educations: {
           orderBy: { startDate: 'desc' },
         },
         user: {
@@ -36,7 +36,7 @@ export class ProfileService {
         ...data,
       },
       include: {
-        education: {
+        educations: {
           orderBy: { startDate: 'desc' },
         },
       },

@@ -32,6 +32,11 @@ const ImageSchema = z.object({
   order: z.number().optional()
 });
 
+const UploadImageSchema = z.object({
+  caption: z.string().optional(),
+  order: z.coerce.number().optional()
+});
+
 const ReorderSchema = z.object({
   imageIds: z.array(z.number())
 });
@@ -187,6 +192,43 @@ export async function addProjectImage(req: Request, res: Response) {
 
     const data = ImageSchema.parse(req.body);
     const image = await projectService.addImage(projectId, userId, data);
+
+    res.status(201).json(image);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Upload project image (multipart)
+export async function addProjectImageUpload(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const projectId = Number(req.params.projectId);
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (Number.isNaN(projectId)) {
+      return res.status(400).json({ error: "Invalid project id" });
+    }
+
+    const file = req.file as Express.Multer.File | undefined;
+    if (!file) {
+      return res.status(400).json({ error: "Image file is required" });
+    }
+
+    const { caption, order } = UploadImageSchema.parse(req.body);
+    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${file.filename}`;
+
+    const image = await projectService.addImage(projectId, userId, {
+      url: fileUrl,
+      caption,
+      order
+    });
 
     res.status(201).json(image);
   } catch (error: any) {
