@@ -1,0 +1,610 @@
+import { Component, effect, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { ProfileService, Education } from '../../core/services/profile.service';
+import { AuthService } from '../../core/services/auth.service';
+
+@Component({
+  selector: 'app-profile',
+  standalone: true,
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  template: `
+    <div class="container">
+      <h2>My Profile</h2>
+
+      @if (profileService.errorSignal()) {
+        <div class="error-message">
+          {{ profileService.errorSignal() }}
+          <button (click)="profileService.clearError()">Dismiss</button>
+        </div>
+      }
+
+      @if (profileService.loadingSignal()) {
+        <p class="loading">Loading profile...</p>
+      } @else if (profileForm) {
+        <!-- Personal Information Section -->
+        <div class="section">
+          <h3>Personal Information</h3>
+          <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+            <div class="form-group">
+              <label>Location</label>
+              <input formControlName="location" type="text" />
+            </div>
+
+            <div class="form-group">
+              <label>Phone</label>
+              <input formControlName="phone" type="tel" />
+            </div>
+
+            <div class="form-group">
+              <label>LinkedIn URL</label>
+              <input formControlName="linkedin" type="url" />
+            </div>
+
+            <div class="form-group">
+              <label>GitHub URL</label>
+              <input formControlName="github" type="url" />
+            </div>
+
+            <div class="form-group">
+              <label>Portfolio URL</label>
+              <input formControlName="portfolio" type="url" />
+            </div>
+
+            <div class="form-group">
+              <label>Professional Summary</label>
+              <textarea formControlName="summary" rows="4"></textarea>
+            </div>
+
+            <button type="submit" [disabled]="profileService.loadingSignal()">
+              {{ profileService.loadingSignal() ? 'Saving...' : 'Save Profile' }}
+            </button>
+          </form>
+        </div>
+
+        <!-- Education Section -->
+        <div class="section">
+          <h3>Education</h3>
+
+          @if (education && education.length > 0) {
+            <div class="education-list">
+              @for (edu of education; track edu.id) {
+                <div class="education-item">
+                  <div class="education-header">
+                    <strong>{{ edu.degree }} in {{ edu.field }}</strong>
+                    @if (!isEditingEducation(edu.id)) {
+                      <button (click)="editEducation(edu)">Edit</button>
+                      <button (click)="deleteEducationItem(edu.id)" class="danger">
+                        Delete
+                      </button>
+                    }
+                  </div>
+
+                  @if (isEditingEducation(edu.id)) {
+                    <form [formGroup]="educationForm!" (ngSubmit)="saveEducation(edu.id)">
+                      <div class="form-group">
+                        <label>Institution</label>
+                        <input formControlName="institution" type="text" />
+                      </div>
+
+                      <div class="form-group">
+                        <label>Degree</label>
+                        <input formControlName="degree" type="text" />
+                      </div>
+
+                      <div class="form-group">
+                        <label>Field of Study</label>
+                        <input formControlName="field" type="text" />
+                      </div>
+
+                      <div class="form-group">
+                        <label>Start Date</label>
+                        <input formControlName="startDate" type="date" />
+                      </div>
+
+                      <div class="form-group">
+                        <label>End Date</label>
+                        <input formControlName="endDate" type="date" />
+                      </div>
+
+                      <div class="form-group checkbox">
+                        <label>
+                          <input formControlName="current" type="checkbox" />
+                          Currently Studying
+                        </label>
+                      </div>
+
+                      <button type="submit">Save Education</button>
+                      <button type="button" (click)="cancelEducationEdit()">
+                        Cancel
+                      </button>
+                    </form>
+                  } @else {
+                    <p>{{ edu.institution }}</p>
+                    <p>
+                      {{ edu.startDate | date: 'MMM yyyy' }} -
+                      @if (edu.current) {
+                        Present
+                      } @else {
+                        {{ edu.endDate | date: 'MMM yyyy' }}
+                      }
+                    </p>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          @if (!isAddingEducation && !isEditingEducationId) {
+            <button (click)="startAddEducation()" class="secondary">
+              + Add Education
+            </button>
+          }
+
+          @if (isAddingEducation) {
+            <form [formGroup]="educationForm!" (ngSubmit)="saveNewEducation()">
+              <div class="form-group">
+                <label>Institution</label>
+                <input formControlName="institution" type="text" />
+              </div>
+
+              <div class="form-group">
+                <label>Degree</label>
+                <input formControlName="degree" type="text" />
+              </div>
+
+              <div class="form-group">
+                <label>Field of Study</label>
+                <input formControlName="field" type="text" />
+              </div>
+
+              <div class="form-group">
+                <label>Start Date</label>
+                <input formControlName="startDate" type="date" />
+              </div>
+
+              <div class="form-group">
+                <label>End Date</label>
+                <input formControlName="endDate" type="date" />
+              </div>
+
+              <div class="form-group checkbox">
+                <label>
+                  <input formControlName="current" type="checkbox" />
+                  Currently Studying
+                </label>
+              </div>
+
+              <button type="submit">Add Education</button>
+              <button type="button" (click)="cancelEducationEdit()">Cancel</button>
+            </form>
+          }
+        </div>
+
+        <!-- Skills Section -->
+        <div class="section">
+          <h3>Skills</h3>
+
+          @if (profileService.skillsSignal().length > 0) {
+            <div class="skills-list">
+              @for (userSkill of profileService.skillsSignal(); track userSkill.skillId) {
+                <div class="skill-badge">
+                  <span>{{ userSkill.skill.name }} ({{ userSkill.level }})</span>
+                  <button
+                    (click)="removeSkill(userSkill.skillId)"
+                    class="remove-btn"
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
+              }
+            </div>
+          }
+
+          @if (!isAddingSkill) {
+            <button (click)="startAddSkill()" class="secondary">+ Add Skill</button>
+          } @else {
+            <form [formGroup]="skillForm!" (ngSubmit)="addNewSkill()">
+              <div class="form-group">
+                <label>Skill Name</label>
+                <input formControlName="skillName" type="text" />
+              </div>
+
+              <div class="form-group">
+                <label>Level</label>
+                <select formControlName="level">
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="Advanced">Advanced</option>
+                  <option value="Expert">Expert</option>
+                </select>
+              </div>
+
+              <button type="submit">Add Skill</button>
+              <button type="button" (click)="isAddingSkill = false">Cancel</button>
+            </form>
+          }
+        </div>
+      }
+    </div>
+  `,
+  styles: `
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    .section {
+      margin-bottom: 40px;
+      padding: 20px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+    }
+
+    h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    button {
+      padding: 8px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+
+      &:hover:not(:disabled) {
+        background: #0056b3;
+      }
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      &.secondary {
+        background: #6c757d;
+
+        &:hover {
+          background: #5a6268;
+        }
+      }
+
+      &.danger {
+        background: #dc3545;
+
+        &:hover {
+          background: #c82333;
+        }
+      }
+    }
+
+    .education-list {
+      margin-bottom: 20px;
+    }
+
+    .education-item {
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    .education-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+
+      button {
+        margin-left: 10px;
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+    }
+
+    .education-item p {
+      margin: 5px 0;
+      color: #666;
+    }
+
+    .skills-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .skill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: #e7f3ff;
+      border: 1px solid #007bff;
+      border-radius: 20px;
+      font-size: 14px;
+
+      .remove-btn {
+        background: none;
+        border: none;
+        color: #007bff;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 0;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover {
+          background: #f0f0f0;
+          border-radius: 50%;
+        }
+      }
+    }
+
+    .error-message {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      button {
+        background: #721c24;
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+    }
+
+    .loading {
+      text-align: center;
+      color: #666;
+    }
+
+    .checkbox {
+      display: flex;
+
+      label {
+        display: flex;
+        align-items: center;
+        margin: 0;
+
+        input {
+          width: auto;
+          margin-right: 8px;
+        }
+      }
+    }
+  `,
+})
+export class ProfileComponent implements OnInit {
+  profileForm: FormGroup | null = null;
+  educationForm: FormGroup | null = null;
+  skillForm: FormGroup | null = null;
+
+  isAddingEducation = false;
+  isEditingEducationId: string | null = null;
+  isAddingSkill = false;
+
+  education: Education[] = [];
+
+  constructor(
+    public profileService: ProfileService,
+    private authService: AuthService,
+    private fb: FormBuilder
+  ) {
+    // Auto-load profile data when component initializes
+    effect(() => {
+      const profile = this.profileService.profileSignal();
+      if (profile) {
+        this.populateProfileForm(profile);
+        this.education = profile.education || [];
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    this.initializeForms();
+    this.loadProfile();
+  }
+
+  private initializeForms(): void {
+    this.profileForm = this.fb.group({
+      location: [''],
+      phone: [''],
+      linkedin: [''],
+      github: [''],
+      portfolio: [''],
+      summary: [''],
+    });
+
+    this.educationForm = this.fb.group({
+      institution: ['', Validators.required],
+      degree: ['', Validators.required],
+      field: ['', Validators.required],
+      startDate: ['', Validators.required],
+      endDate: [''],
+      current: [false],
+    });
+
+    this.skillForm = this.fb.group({
+      skillName: ['', Validators.required],
+      level: ['Intermediate', Validators.required],
+    });
+  }
+
+  private populateProfileForm(profile: any): void {
+    if (this.profileForm) {
+      this.profileForm.patchValue({
+        location: profile.location || '',
+        phone: profile.phone || '',
+        linkedin: profile.linkedin || '',
+        github: profile.github || '',
+        portfolio: profile.portfolio || '',
+        summary: profile.summary || '',
+      });
+    }
+  }
+
+  private async loadProfile(): Promise<void> {
+    try {
+      await this.profileService.getProfile();
+      await this.profileService.getUserSkills();
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    }
+  }
+
+  async saveProfile(): Promise<void> {
+    if (!this.profileForm?.valid) return;
+
+    try {
+      await this.profileService.updateProfile(this.profileForm.value);
+      alert('Profile saved successfully!');
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+    }
+  }
+
+  startAddEducation(): void {
+    this.isAddingEducation = true;
+    this.educationForm?.reset();
+  }
+
+  editEducation(edu: Education): void {
+    this.isEditingEducationId = edu.id;
+    this.educationForm?.patchValue({
+      institution: edu.institution,
+      degree: edu.degree,
+      field: edu.field,
+      startDate: new Date(edu.startDate).toISOString().split('T')[0],
+      endDate: edu.endDate
+        ? new Date(edu.endDate).toISOString().split('T')[0]
+        : '',
+      current: edu.current,
+    });
+  }
+
+  async saveEducation(educationId: string): Promise<void> {
+    if (!this.educationForm?.valid) return;
+
+    try {
+      await this.profileService.updateEducation(
+        educationId,
+        this.educationForm.value
+      );
+      await this.loadProfile();
+      this.cancelEducationEdit();
+      alert('Education updated successfully!');
+    } catch (error) {
+      console.error('Failed to save education:', error);
+    }
+  }
+
+  async saveNewEducation(): Promise<void> {
+    if (!this.educationForm?.valid) return;
+
+    try {
+      await this.profileService.addEducation(this.educationForm.value);
+      await this.loadProfile();
+      this.cancelEducationEdit();
+      alert('Education added successfully!');
+    } catch (error) {
+      console.error('Failed to add education:', error);
+    }
+  }
+
+  async deleteEducationItem(educationId: string): Promise<void> {
+    if (!confirm('Are you sure you want to delete this education entry?'))
+      return;
+
+    try {
+      await this.profileService.deleteEducation(educationId);
+      await this.loadProfile();
+      alert('Education deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete education:', error);
+    }
+  }
+
+  cancelEducationEdit(): void {
+    this.isAddingEducation = false;
+    this.isEditingEducationId = null;
+    this.educationForm?.reset();
+  }
+
+  isEditingEducation(educationId: string): boolean {
+    return this.isEditingEducationId === educationId;
+  }
+
+  startAddSkill(): void {
+    this.isAddingSkill = true;
+  }
+
+  async addNewSkill(): Promise<void> {
+    if (!this.skillForm?.valid) return;
+
+    try {
+      const { skillName, level } = this.skillForm.value;
+      await this.profileService.addSkill({
+        name: skillName,
+        level,
+      });
+      this.skillForm.reset({ level: 'Intermediate' });
+      this.isAddingSkill = false;
+      alert('Skill added successfully!');
+    } catch (error) {
+      console.error('Failed to add skill:', error);
+    }
+  }
+
+  async removeSkill(skillId: string): Promise<void> {
+    if (!confirm('Remove this skill?')) return;
+
+    try {
+      await this.profileService.removeSkill(skillId);
+      alert('Skill removed successfully!');
+    } catch (error) {
+      console.error('Failed to remove skill:', error);
+    }
+  }
+}

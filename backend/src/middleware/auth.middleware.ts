@@ -3,6 +3,15 @@ import type { NextFunction, Request, Response } from "express";
 import { AuthService } from "../services/auth.service.js";
 import type { AuthRequest, JWTPayload } from "../types/auth.js";
 
+// Extend Express Request type
+declare global {
+  namespace Express {
+    interface Request {
+      user?: JWTPayload;
+    }
+  }
+}
+
 /**
  * Middleware to verify JWT and attach user to request
  */
@@ -23,7 +32,7 @@ export const authenticate = (
     const payload: JWTPayload = AuthService.verifyToken(token);
 
     // Attach user to request
-    (req as AuthRequest).user = payload;
+    (req as unknown as AuthRequest).user = payload;
     next();
   } catch (error) {
     res.status(401).json({ error: "Invalid or expired token" });
@@ -35,7 +44,7 @@ export const authenticate = (
  */
 export const authorize = (...allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const user = (req as AuthRequest).user;
+    const user = (req as unknown as AuthRequest).user;
 
     if (!user) {
       res.status(401).json({ error: "Unauthorized" });

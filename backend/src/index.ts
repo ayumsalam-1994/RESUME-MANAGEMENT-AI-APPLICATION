@@ -5,6 +5,8 @@ import type { Request, Response } from "express";
 import { config } from "./config.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import authRoutes from "./routes/auth.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
+import experienceRoutes from "./routes/experience.routes.js";
 
 const app = express();
 
@@ -22,6 +24,8 @@ app.get("/health", (_req: Request, res: Response) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/experiences", experienceRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

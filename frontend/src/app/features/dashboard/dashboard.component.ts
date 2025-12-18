@@ -24,16 +24,14 @@ import { AuthService } from '../../core/services/auth.service';
         <p>Welcome to Resume AI Application!</p>
 
         <div class="feature-cards">
-          <div class="card">
+          <div class="card" (click)="navigateToProfile()">
             <h3>Profile</h3>
             <p>Manage your personal information, education, and skills</p>
-            <span class="status">Coming Soon</span>
           </div>
 
-          <div class="card">
+          <div class="card" (click)="navigateToExperience()">
             <h3>Experience</h3>
             <p>Add and manage your work experience</p>
-            <span class="status">Coming Soon</span>
           </div>
 
           <div class="card">
@@ -138,6 +136,13 @@ import { AuthService } from '../../core/services/auth.service';
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       position: relative;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
 
     .card h3 {
@@ -182,4 +187,13 @@ export class DashboardComponent {
     this.authService.logout();
     this.router.navigate(['/login']);
   }
+
+  navigateToProfile(): void {
+    this.router.navigate(['/profile']);
+  }
+
+  navigateToExperience(): void {
+    this.router.navigate(['/experience']);
+  }
 }
+

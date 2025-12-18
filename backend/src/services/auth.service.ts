@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 
 import { config } from "../config.js";
 import type { JWTPayload } from "../types/auth.js";
@@ -30,7 +30,7 @@ export class AuthService {
   static generateAccessToken(payload: JWTPayload): string {
     return jwt.sign(payload, config.jwtSecret, {
       expiresIn: config.jwtAccessExpires
-    });
+    } as SignOptions);
   }
 
   /**
@@ -39,7 +39,7 @@ export class AuthService {
   static generateRefreshToken(payload: JWTPayload): string {
     return jwt.sign(payload, config.jwtSecret, {
       expiresIn: config.jwtRefreshExpires
-    });
+    } as SignOptions);
   }
 
   /**
