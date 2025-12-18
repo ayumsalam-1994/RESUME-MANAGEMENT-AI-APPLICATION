@@ -143,4 +143,16 @@ export class JobApplicationService {
       this.http.post<Resume>(`${API_URL}/${applicationId}/resumes/generate`, body)
     );
   }
+
+  async importResume(applicationId: number, content: string): Promise<Resume> {
+    return await firstValueFrom(
+      this.http.post<Resume>(`${API_URL}/${applicationId}/resumes/import`, { content })
+    );
+  }
+
+  async deleteResume(applicationId: number, resumeId: number): Promise<void> {
+    await firstValueFrom(
+      this.http.delete(`${API_URL}/${applicationId}/resumes/${resumeId}`)
+    );
+  }
 }

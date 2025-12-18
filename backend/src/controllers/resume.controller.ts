@@ -40,12 +40,51 @@ export async function generateResume(req: Request, res: Response) {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     if (Number.isNaN(applicationId)) return res.status(400).json({ error: "Invalid application id" });
 
-    const resume = await resumeService.generateForApplication(userId, applicationId);
+    const bodySchema = z.object({ jobDescription: z.string().min(10).optional(), fallback: z.boolean().optional() });
+    const { jobDescription, fallback } = bodySchema.parse(req.body ?? {});
+
+    const resume = await resumeService.generateForApplication(userId, applicationId, jobDescription);
     res.status(201).json(resume);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Import resume from pasted JSON
+export async function importResume(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const applicationId = Number(req.params.applicationId);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (Number.isNaN(applicationId)) return res.status(400).json({ error: "Invalid application id" });
+
+    const bodySchema = z.object({ content: z.string().min(2) });
+    const { content } = bodySchema.parse(req.body);
+
+    const resume = await resumeService.importResume(userId, applicationId, content);
+    res.status(201).json(resume);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Delete resume
+export async function deleteResume(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const resumeId = Number(req.params.resumeId);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (Number.isNaN(resumeId)) return res.status(400).json({ error: "Invalid resume id" });
+
+    await resumeService.deleteResume(resumeId, userId);
+    res.json({ success: true });
+  } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 }

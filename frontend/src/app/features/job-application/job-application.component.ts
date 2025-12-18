@@ -7,6 +7,9 @@ import {
   JobApplicationService
 } from '../../core/services/jobApplication.service';
 import { Company, CompanyService } from '../../core/services/company.service';
+import { ProfileService } from '../../core/services/profile.service';
+import { ExperienceService } from '../../core/services/experience.service';
+import { ProjectService } from '../../core/services/project.service';
 
 @Component({
   selector: 'app-job-applications',
@@ -176,16 +179,87 @@ import { Company, CompanyService } from '../../core/services/company.service';
                 <div class="resume-panel">
                   <div class="resume-actions">
                     <button class="small" (click)="refreshResumes(app.id)">Refresh</button>
+                    <button class="small primary" (click)="copyPrompt(app)">Copy Prompt</button>
+                    <button class="small secondary" (click)="startImport(app.id)">Import Resume</button>
+                    <button class="small ghost" (click)="toggleRaw(app.id)">
+                      @if (rawPanels[app.id]) { Hide Raw } @else { Show Raw }
+                    </button>
                   </div>
+                  @if (importingTo === app.id) {
+                    <div class="import-panel">
+                      <h4>Paste Resume JSON</h4>
+                      <textarea
+                        [(ngModel)]="importContent"
+                        placeholder="Paste the JSON from ChatGPT here..."
+                        rows="8"
+                      ></textarea>
+                      <div class="import-actions">
+                        <button class="primary small" (click)="submitImport(app.id)">Import</button>
+                        <button class="ghost small" (click)="cancelImport()">Cancel</button>
+                      </div>
+                    </div>
+                  }
                   @if (resumesByApp[app.id]?.length) {
                     <div class="resume-list">
                       @for (resume of resumesByApp[app.id]; track resume.id) {
                         <div class="resume-item">
+                          @if (resume.parsed?.meta?.generator === 'fallback') {
+                            <span class="badge fallback">Fallback</span>
+                          }
                           <div class="resume-meta">
                             <strong>Version {{ resume.version }}</strong>
                             <span>• {{ resume.createdAt | date: 'MMM dd, yyyy HH:mm' }}</span>
+                            <button class="danger tiny" (click)="deleteResumeVersion(app.id, resume.id)">Delete</button>
                           </div>
-                          <pre class="resume-content">{{ resume.content | json }}</pre>
+                          @if (!rawPanels[app.id]) {
+                            @if (resume.parsed?.summary) {
+                              <p class="summary">{{ resume.parsed.summary }}</p>
+                            }
+                            @if (resume.parsed?.skills?.length) {
+                              <div class="chips">
+                                @for (skill of resume.parsed.skills; track skill) {
+                                  <span class="chip">{{ skill }}</span>
+                                }
+                              </div>
+                            }
+                            @if (resume.parsed?.experience?.length) {
+                              <div class="section">
+                                <h5>Experience</h5>
+                                @for (exp of resume.parsed.experience; track exp.company + exp.role + exp.start) {
+                                  <div class="exp-item">
+                                    <div class="exp-header">
+                                      <strong>{{ exp.role }}</strong>
+                                      <span class="company">@ {{ exp.company }}</span>
+                                      <span class="dates">• {{ exp.start }} - {{ exp.end || 'Present' }}</span>
+                                    </div>
+                                    @if (exp.bullets?.length) {
+                                      <ul class="bullets">
+                                        @for (b of exp.bullets; track b) { <li>{{ b }}</li> }
+                                      </ul>
+                                    }
+                                  </div>
+                                }
+                              </div>
+                            }
+                            @if (resume.parsed?.projects?.length) {
+                              <div class="section">
+                                <h5>Projects</h5>
+                                @for (proj of resume.parsed.projects; track proj.title) {
+                                  <div class="proj-item">
+                                    <strong>{{ proj.title }}</strong>
+                                    @if (proj.description) { <p>{{ proj.description }}</p> }
+                                    @if (proj.tech?.length) {
+                                      <div class="chips">
+                                        @for (t of proj.tech; track t) { <span class="chip alt">{{ t }}</span> }
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                              </div>
+                            }
+                          } @else {
+                            <pre class="resume-content">{{ resume.content | json }}</pre>
+                          }
                         </div>
                       }
                     </div>
@@ -509,6 +583,11 @@ import { Company, CompanyService } from '../../core/services/company.service';
         font-size: 13px;
       }
 
+      &.tiny {
+        padding: 2px 6px;
+        font-size: 11px;
+      }
+
       &.link-btn {
         background: none;
         color: #007bff;
@@ -529,6 +608,30 @@ import { Company, CompanyService } from '../../core/services/company.service';
       display: flex;
       justify-content: flex-end;
       margin-bottom: 8px;
+      gap: 6px;
+    }
+
+    .import-panel {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
+
+      h4 { margin: 0 0 8px; font-size: 13px; }
+      textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      .import-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
     }
 
     .resume-list {
@@ -541,6 +644,17 @@ import { Company, CompanyService } from '../../core/services/company.service';
       border: 1px solid #ddd;
       border-radius: 6px;
       padding: 10px;
+    }
+
+    .badge.fallback {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 11px;
+      border-radius: 10px;
+      background: #ffe08a;
+      color: #5c4b1b;
+      border: 1px solid #e5c970;
+      margin-bottom: 6px;
     }
 
     .resume-meta {
@@ -561,6 +675,19 @@ import { Company, CompanyService } from '../../core/services/company.service';
       border: 1px solid #eee;
     }
 
+    .summary { color: #333; margin: 4px 0 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+    .chip { background: #e7f3ff; color: #004085; border: 1px solid #99caff; border-radius: 12px; padding: 2px 8px; font-size: 12px; }
+    .chip.alt { background: #f1f3f5; color: #333; border-color: #ccc; }
+    .section { margin-top: 8px; }
+    .section h5 { margin: 0 0 6px; font-size: 13px; color: #444; }
+    .exp-item { margin-bottom: 8px; }
+    .exp-header { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+    .exp-header .company { color: #555; }
+    .exp-header .dates { color: #777; }
+    .bullets { margin: 6px 0 0; padding-left: 18px; }
+    .proj-item { margin-bottom: 8px; }
+
     .muted { color: #777; }
   `,
 })
@@ -573,10 +700,16 @@ export class JobApplicationComponent implements OnInit {
   newCompanyName = '';
   resumesByApp: Record<number, any[]> = {};
   resumePanels: Record<number, boolean> = {};
+  rawPanels: Record<number, boolean> = {};
+  importingTo: number | null = null;
+  importContent = '';
 
   constructor(
     public applicationService: JobApplicationService,
     public companyService: CompanyService,
+    private profileService: ProfileService,
+    private experienceService: ExperienceService,
+    private projectService: ProjectService,
     private fb: FormBuilder
   ) {}
 
@@ -650,11 +783,28 @@ export class JobApplicationComponent implements OnInit {
     if (!this.applicationForm.valid) return;
 
     try {
-      await this.applicationService.createApplication(this.applicationForm.value);
+      const formValue = this.applicationForm.value;
+      const payload: any = {
+        companyId: Number(formValue.companyId),
+        jobTitle: formValue.jobTitle,
+        jobDescription: formValue.jobDescription,
+        platform: formValue.platform || undefined,
+        applicationUrl: formValue.applicationUrl || undefined,
+        contactPerson: formValue.contactPerson || undefined,
+        dateApplied: formValue.dateApplied || undefined,
+        status: formValue.status || 'draft',
+        notes: formValue.notes || undefined
+      };
+      
+      // Remove undefined values
+      Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+      
+      await this.applicationService.createApplication(payload);
       this.cancelEdit();
       alert('Job target added successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to add application:', error);
+      alert(`Error adding job target: ${error?.error?.error || error.message}`);
     }
   }
 
@@ -662,11 +812,28 @@ export class JobApplicationComponent implements OnInit {
     if (!this.applicationForm.valid) return;
 
     try {
-      await this.applicationService.updateApplication(applicationId, this.applicationForm.value);
+      const formValue = this.applicationForm.value;
+      const payload: any = {
+        companyId: Number(formValue.companyId),
+        jobTitle: formValue.jobTitle,
+        jobDescription: formValue.jobDescription,
+        platform: formValue.platform || undefined,
+        applicationUrl: formValue.applicationUrl || undefined,
+        contactPerson: formValue.contactPerson || undefined,
+        dateApplied: formValue.dateApplied || undefined,
+        status: formValue.status || 'draft',
+        notes: formValue.notes || undefined
+      };
+      
+      // Remove undefined values
+      Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+      
+      await this.applicationService.updateApplication(applicationId, payload);
       this.cancelEdit();
       alert('Application updated successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update application:', error);
+      alert(`Error updating job target: ${error?.error?.error || error.message}`);
     }
   }
 
@@ -719,7 +886,11 @@ export class JobApplicationComponent implements OnInit {
   async refreshResumes(applicationId: number): Promise<void> {
     try {
       const items = await this.applicationService.listResumes(applicationId);
-      this.resumesByApp[applicationId] = items;
+      const parsed = items.map((r: any) => ({
+        ...r,
+        parsed: this.safeParse(r.content)
+      }));
+      this.resumesByApp[applicationId] = parsed;
     } catch (error) {
       console.error('Failed to load resumes:', error);
     }
@@ -730,6 +901,190 @@ export class JobApplicationComponent implements OnInit {
     this.resumePanels[applicationId] = !currently;
     if (!currently) {
       await this.refreshResumes(applicationId);
+    }
+  }
+
+  toggleRaw(applicationId: number): void {
+    this.rawPanels[applicationId] = !this.rawPanels[applicationId];
+  }
+
+  private safeParse(content: any): any {
+    if (!content) return null;
+    if (typeof content === 'object') return content;
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  async copyPrompt(app: any): Promise<void> {
+    try {
+      // Fetch user data
+      const profile = await this.profileService.getProfile();
+      const skills = await this.profileService.getUserSkills();
+      const experiences = await this.experienceService.getUserExperiences();
+      const projects = await this.projectService.getProjects(false); // only active projects
+
+      // Format profile data
+      let profileSection = `\n--- USER PROFILE DATA ---\n`;
+      if (profile) {
+        profileSection += `Phone: ${profile.phone || 'Not specified'}\n`;
+        profileSection += `Location: ${profile.location || 'Not specified'}\n`;
+        profileSection += `LinkedIn: ${profile.linkedin || 'Not specified'}\n`;
+        profileSection += `GitHub: ${profile.github || 'Not specified'}\n`;
+        profileSection += `Portfolio: ${profile.portfolio || 'Not specified'}\n`;
+        if (profile.summary) {
+          profileSection += `\nProfessional Summary:\n${profile.summary}\n`;
+        }
+        
+        if (profile.educations && profile.educations.length > 0) {
+          profileSection += `\nEducation:\n`;
+          profile.educations.forEach((edu: any) => {
+            profileSection += `  - ${edu.degree} in ${edu.field} from ${edu.institution} (${edu.startDate ? new Date(edu.startDate).getFullYear() : ''} - ${edu.endDate ? new Date(edu.endDate).getFullYear() : 'Present'})\n`;
+          });
+        }
+      }
+
+      // Format skills
+      if (skills && skills.length > 0) {
+        profileSection += `\nSkills:\n`;
+        skills.forEach((userSkill: any) => {
+          profileSection += `  - ${userSkill.skill.name}${userSkill.skill.category ? ` (${userSkill.skill.category})` : ''}${userSkill.level ? ` - ${userSkill.level}` : ''}\n`;
+        });
+      }
+
+      // Format experiences
+      let experienceSection = `\n--- USER EXPERIENCE ---\n`;
+      if (experiences && experiences.length > 0) {
+        experiences.forEach((exp: any) => {
+          experienceSection += `\nCompany: ${exp.company}\n`;
+          experienceSection += `Position: ${exp.position}\n`;
+          experienceSection += `Duration: ${exp.startDate ? new Date(exp.startDate).toLocaleDateString() : 'N/A'} - ${exp.endDate ? new Date(exp.endDate).toLocaleDateString() : 'Present'}\n`;
+          if (exp.location) experienceSection += `Location: ${exp.location}\n`;
+          if (exp.description) experienceSection += `Description: ${exp.description}\n`;
+          if (exp.bullets && exp.bullets.length > 0) {
+            experienceSection += `Key Achievements:\n`;
+            exp.bullets.forEach((bullet: any) => {
+              experienceSection += `  - ${bullet.content}\n`;
+            });
+          }
+        });
+      } else {
+        experienceSection += `No experience data available.\n`;
+      }
+
+      // Format projects
+      let projectSection = `\n--- USER PROJECTS ---\n`;
+      if (projects && projects.length > 0) {
+        projects.filter((p: any) => !p.archived).forEach((proj: any) => {
+          projectSection += `\nProject: ${proj.title}\n`;
+          if (proj.summary) projectSection += `Summary: ${proj.summary}\n`;
+          if (proj.description) projectSection += `Description: ${proj.description}\n`;
+          if (proj.role) projectSection += `Role: ${proj.role}\n`;
+          if (proj.achievements) projectSection += `Achievements: ${proj.achievements}\n`;
+          if (proj.techStack) {
+            projectSection += `Technologies: ${proj.techStack}\n`;
+          }
+          if (proj.url) projectSection += `URL: ${proj.url}\n`;
+          if (proj.startDate) {
+            projectSection += `Duration: ${new Date(proj.startDate).toLocaleDateString()} - ${proj.endDate ? new Date(proj.endDate).toLocaleDateString() : 'Present'}\n`;
+          }
+        });
+      } else {
+        projectSection += `No project data available.\n`;
+      }
+
+      const prompt = `You are an expert ATS resume writer. Generate a concise, ATS-safe resume in JSON format based on the following data.
+
+--- JOB TARGET ---
+Job Title: ${app.jobTitle}
+Job Description:
+${app.jobDescription}
+${profileSection}${experienceSection}${projectSection}
+
+--- INSTRUCTIONS ---
+Using the user's profile, experience, and projects data above, create a tailored resume for the job target.
+
+Output a JSON object with this exact structure:
+{
+  "summary": "Professional summary tailored to the job (2-3 sentences, emphasize relevant skills and experience)",
+  "skills": ["skill1", "skill2", "skill3", ...],
+  "experience": [
+    {
+      "company": "Company Name",
+      "role": "Position Title",
+      "start": "YYYY-MM",
+      "end": "YYYY-MM or Present",
+      "bullets": ["Achievement 1 with metrics", "Achievement 2 with impact", ...]
+    }
+  ],
+  "projects": [
+    {
+      "title": "Project Name",
+      "description": "Brief description emphasizing relevance to job",
+      "tech": ["tech1", "tech2"]
+    }
+  ]
+}
+
+Guidelines:
+- Focus on ATS-safe formatting, avoid special characters
+- Avoid first person pronouns (I, my, we)
+- Emphasize quantifiable impact and results
+- Prioritize skills and experience most relevant to the job description
+- Keep bullets concise and action-oriented
+- Highlight and reframe my skills to be relevant for the position
+- Do not use em-dash in your writing
+- Use simple vocabulary that a Malaysian English speaker would normally use
+- Use past tense for previous roles, present tense for current roles`;
+
+      await navigator.clipboard.writeText(prompt);
+      alert('Detailed prompt with your profile data copied to clipboard! Paste it into ChatGPT.');
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy prompt. Please try again.');
+    }
+  }
+
+  startImport(applicationId: number): void {
+    this.importingTo = applicationId;
+    this.importContent = '';
+  }
+
+  cancelImport(): void {
+    this.importingTo = null;
+    this.importContent = '';
+  }
+
+  async submitImport(applicationId: number): Promise<void> {
+    if (!this.importContent.trim()) {
+      alert('Please paste resume JSON content.');
+      return;
+    }
+
+    try {
+      await this.applicationService.importResume(applicationId, this.importContent);
+      await this.refreshResumes(applicationId);
+      this.cancelImport();
+      alert('Resume imported successfully!');
+    } catch (error: any) {
+      console.error('Failed to import resume:', error);
+      const msg = error?.error?.error || error?.message || 'Failed to import resume.';
+      alert(`Import failed: ${msg}`);
+    }
+  }
+
+  async deleteResumeVersion(applicationId: number, resumeId: number): Promise<void> {
+    if (!confirm('Delete this resume version? This cannot be undone.')) return;
+
+    try {
+      await this.applicationService.deleteResume(applicationId, resumeId);
+      await this.refreshResumes(applicationId);
+      alert('Resume version deleted.');
+    } catch (error: any) {
+      console.error('Failed to delete resume:', error);
+      alert('Failed to delete resume.');
     }
   }
 }
