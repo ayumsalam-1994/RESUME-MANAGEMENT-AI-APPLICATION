@@ -85,21 +85,25 @@ import { AuthService } from '../../core/services/auth.service';
                       <div class="form-group">
                         <label>Institution</label>
                         <input formControlName="institution" type="text" />
+                        @if (controlInvalid('institution')) { <small class="error">Institution is required</small> }
                       </div>
 
                       <div class="form-group">
                         <label>Degree</label>
                         <input formControlName="degree" type="text" />
+                        @if (controlInvalid('degree')) { <small class="error">Degree is required</small> }
                       </div>
 
                       <div class="form-group">
                         <label>Field of Study</label>
                         <input formControlName="field" type="text" />
+                        @if (controlInvalid('field')) { <small class="error">Field is required</small> }
                       </div>
 
                       <div class="form-group">
                         <label>Start Date</label>
                         <input formControlName="startDate" type="date" />
+                        @if (controlInvalid('startDate')) { <small class="error">Start date is required</small> }
                       </div>
 
                       <div class="form-group">
@@ -114,7 +118,7 @@ import { AuthService } from '../../core/services/auth.service';
                         </label>
                       </div>
 
-                      <button type="submit">Save Education</button>
+                      <button type="submit" [disabled]="educationForm?.invalid">Save Education</button>
                       <button type="button" (click)="cancelEducationEdit()">
                         Cancel
                       </button>
@@ -146,21 +150,25 @@ import { AuthService } from '../../core/services/auth.service';
               <div class="form-group">
                 <label>Institution</label>
                 <input formControlName="institution" type="text" />
+                @if (controlInvalid('institution')) { <small class="error">Institution is required</small> }
               </div>
 
               <div class="form-group">
                 <label>Degree</label>
                 <input formControlName="degree" type="text" />
+                @if (controlInvalid('degree')) { <small class="error">Degree is required</small> }
               </div>
 
               <div class="form-group">
                 <label>Field of Study</label>
                 <input formControlName="field" type="text" />
+                @if (controlInvalid('field')) { <small class="error">Field is required</small> }
               </div>
 
               <div class="form-group">
                 <label>Start Date</label>
                 <input formControlName="startDate" type="date" />
+                @if (controlInvalid('startDate')) { <small class="error">Start date is required</small> }
               </div>
 
               <div class="form-group">
@@ -174,8 +182,7 @@ import { AuthService } from '../../core/services/auth.service';
                   Currently Studying
                 </label>
               </div>
-
-              <button type="submit">Add Education</button>
+              <button type="submit" [disabled]="educationForm?.invalid">Add Education</button>
               <button type="button" (click)="cancelEducationEdit()">Cancel</button>
             </form>
           }
@@ -189,7 +196,7 @@ import { AuthService } from '../../core/services/auth.service';
             <div class="skills-list">
               @for (userSkill of profileService.skillsSignal(); track userSkill.skillId) {
                 <div class="skill-badge">
-                  <span>{{ userSkill.skill.name }} ({{ userSkill.level }})</span>
+                  <span>{{ userSkill.skill.name }}</span>
                   <button
                     (click)="removeSkill(userSkill.skillId)"
                     class="remove-btn"
@@ -414,6 +421,12 @@ import { AuthService } from '../../core/services/auth.service';
         }
       }
     }
+
+    small.error {
+      color: #dc3545;
+      display: block;
+      margin-top: 4px;
+    }
   `,
 })
 export class ProfileComponent implements OnInit {
@@ -422,7 +435,7 @@ export class ProfileComponent implements OnInit {
   skillForm: FormGroup | null = null;
 
   isAddingEducation = false;
-  isEditingEducationId: string | null = null;
+  isEditingEducationId: number | null = null;
   isAddingSkill = false;
 
   education: Education[] = [];
@@ -437,7 +450,7 @@ export class ProfileComponent implements OnInit {
       const profile = this.profileService.profileSignal();
       if (profile) {
         this.populateProfileForm(profile);
-        this.education = profile.education || [];
+        this.education = profile.educations || [];
       }
     });
   }
@@ -524,42 +537,75 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  async saveEducation(educationId: string): Promise<void> {
+  async saveEducation(educationId: number): Promise<void> {
     if (!this.educationForm?.valid) return;
+    this.educationForm?.markAllAsTouched();
 
     try {
-      await this.profileService.updateEducation(
+      const formValue = this.educationForm.value;
+      const payload: any = {
+        institution: formValue.institution,
+        degree: formValue.degree,
+        field: formValue.field,
+        startDate: formValue.startDate,
+        current: formValue.current ?? false,
+      };
+      // Only include endDate if it has a value
+      if (formValue.endDate && formValue.endDate.trim()) {
+        payload.endDate = formValue.endDate;
+      }
+      
+      const updated = await this.profileService.updateEducation(
         educationId,
-        this.educationForm.value
+        payload
       );
-      await this.loadProfile();
+      const list = this.education.map((e) => (e.id === educationId ? updated : e));
+      this.setLocalEducations(list);
       this.cancelEducationEdit();
       alert('Education updated successfully!');
     } catch (error) {
       console.error('Failed to save education:', error);
+      alert('Failed to update education. Please check the console for details.');
     }
   }
 
   async saveNewEducation(): Promise<void> {
     if (!this.educationForm?.valid) return;
+    this.educationForm?.markAllAsTouched();
 
     try {
-      await this.profileService.addEducation(this.educationForm.value);
-      await this.loadProfile();
+      const formValue = this.educationForm.value;
+      const payload: any = {
+        institution: formValue.institution,
+        degree: formValue.degree,
+        field: formValue.field,
+        startDate: formValue.startDate,
+        current: formValue.current ?? false,
+      };
+      // Only include endDate if it has a value
+      if (formValue.endDate && formValue.endDate.trim()) {
+        payload.endDate = formValue.endDate;
+      }
+      
+      const created = await this.profileService.addEducation(payload);
+      const list = [created, ...this.education];
+      this.setLocalEducations(list);
       this.cancelEducationEdit();
       alert('Education added successfully!');
     } catch (error) {
       console.error('Failed to add education:', error);
+      alert('Failed to add education. Please check the console for details.');
     }
   }
 
-  async deleteEducationItem(educationId: string): Promise<void> {
+  async deleteEducationItem(educationId: number): Promise<void> {
     if (!confirm('Are you sure you want to delete this education entry?'))
       return;
 
     try {
       await this.profileService.deleteEducation(educationId);
-      await this.loadProfile();
+      const list = this.education.filter((e) => e.id !== educationId);
+      this.setLocalEducations(list);
       alert('Education deleted successfully!');
     } catch (error) {
       console.error('Failed to delete education:', error);
@@ -572,7 +618,7 @@ export class ProfileComponent implements OnInit {
     this.educationForm?.reset();
   }
 
-  isEditingEducation(educationId: string): boolean {
+  isEditingEducation(educationId: number): boolean {
     return this.isEditingEducationId === educationId;
   }
 
@@ -589,6 +635,7 @@ export class ProfileComponent implements OnInit {
         name: skillName,
         level,
       });
+      await this.profileService.getUserSkills();
       this.skillForm.reset({ level: 'Intermediate' });
       this.isAddingSkill = false;
       alert('Skill added successfully!');
@@ -597,7 +644,7 @@ export class ProfileComponent implements OnInit {
     }
   }
 
-  async removeSkill(skillId: string): Promise<void> {
+  async removeSkill(skillId: number): Promise<void> {
     if (!confirm('Remove this skill?')) return;
 
     try {
@@ -606,5 +653,15 @@ export class ProfileComponent implements OnInit {
     } catch (error) {
       console.error('Failed to remove skill:', error);
     }
+  }
+
+  private setLocalEducations(list: Education[]): void {
+    this.education = list;
+    this.profileService.profileSignal.update((p) => (p ? { ...p, educations: list } : p));
+  }
+
+  controlInvalid(name: string): boolean {
+    const c = this.educationForm?.get(name);
+    return !!c && c.invalid && (c.dirty || c.touched);
   }
 }

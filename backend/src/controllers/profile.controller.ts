@@ -16,9 +16,9 @@ const EducationSchema = z.object({
   institution: z.string().min(1),
   degree: z.string().min(1),
   field: z.string().min(1),
-  startDate: z.coerce.date(),
-  endDate: z.coerce.date().optional(),
-  current: z.boolean().default(false),
+  startDate: z.string(),
+  endDate: z.string().optional().nullable(),
+  current: z.boolean().optional().default(false),
 });
 
 const SkillSchema = z.object({
@@ -85,7 +85,15 @@ export async function addEducation(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const data = EducationSchema.parse(req.body);
+    const validated = EducationSchema.parse(req.body);
+    const data = {
+      institution: validated.institution,
+      degree: validated.degree,
+      field: validated.field,
+      startDate: new Date(validated.startDate),
+      endDate: validated.endDate ? new Date(validated.endDate) : null,
+      current: validated.current ?? false,
+    };
     const education = await profileService.addEducation(userId, data);
 
     res.status(201).json(education);
@@ -105,7 +113,20 @@ export async function updateEducation(req: Request, res: Response) {
       return res.status(400).json({ error: 'Invalid education id' });
     }
 
-    const data = EducationSchema.partial().parse(req.body);
+    const validated = EducationSchema.partial().parse(req.body);
+    const data: any = {};
+    if (validated.institution !== undefined) data.institution = validated.institution;
+    if (validated.degree !== undefined) data.degree = validated.degree;
+    if (validated.field !== undefined) data.field = validated.field;
+    if (validated.startDate) {
+      data.startDate = new Date(validated.startDate);
+    }
+    if (validated.endDate !== undefined) {
+      data.endDate = validated.endDate ? new Date(validated.endDate) : null;
+    }
+    if (validated.current !== undefined) {
+      data.current = validated.current;
+    }
 
     const education = await profileService.updateEducation(educationId, data);
     res.json(education);

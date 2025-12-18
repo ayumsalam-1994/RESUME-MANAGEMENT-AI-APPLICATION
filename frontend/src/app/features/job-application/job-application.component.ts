@@ -166,7 +166,34 @@ import { Company, CompanyService } from '../../core/services/company.service';
               <div class="actions">
                 <button class="secondary" (click)="startEdit(app)">Edit</button>
                 <button class="danger" (click)="deleteApplicationItem(app.id)">Delete</button>
+                <button class="primary" (click)="generateResume(app.id)">Generate AI Resume</button>
+                <button class="ghost" (click)="toggleResumes(app.id)">
+                  @if (resumePanels[app.id]) { Hide Resumes } @else { Show Resumes }
+                </button>
               </div>
+
+              @if (resumePanels[app.id]) {
+                <div class="resume-panel">
+                  <div class="resume-actions">
+                    <button class="small" (click)="refreshResumes(app.id)">Refresh</button>
+                  </div>
+                  @if (resumesByApp[app.id]?.length) {
+                    <div class="resume-list">
+                      @for (resume of resumesByApp[app.id]; track resume.id) {
+                        <div class="resume-item">
+                          <div class="resume-meta">
+                            <strong>Version {{ resume.version }}</strong>
+                            <span>• {{ resume.createdAt | date: 'MMM dd, yyyy HH:mm' }}</span>
+                          </div>
+                          <pre class="resume-content">{{ resume.content | json }}</pre>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <p class="muted">No resumes yet. Generate one above.</p>
+                  }
+                </div>
+              }
             }
           </div>
         }
@@ -490,6 +517,51 @@ import { Company, CompanyService } from '../../core/services/company.service';
         font-size: 13px;
       }
     }
+
+    .resume-panel {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+
+    .resume-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+
+    .resume-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .resume-item {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    .resume-meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .resume-content {
+      margin: 0;
+      white-space: pre-wrap;
+      font-size: 12px;
+      background: #f6f6f6;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #eee;
+    }
+
+    .muted { color: #777; }
   `,
 })
 export class JobApplicationComponent implements OnInit {
@@ -499,6 +571,8 @@ export class JobApplicationComponent implements OnInit {
   selectedStatus = '';
   showCompanyForm = false;
   newCompanyName = '';
+  resumesByApp: Record<number, any[]> = {};
+  resumePanels: Record<number, boolean> = {};
 
   constructor(
     public applicationService: JobApplicationService,
@@ -628,5 +702,34 @@ export class JobApplicationComponent implements OnInit {
     this.showCompanyForm = false;
     this.newCompanyName = '';
     this.applicationForm.reset({ status: 'draft' });
+  }
+
+  async generateResume(applicationId: number): Promise<void> {
+    try {
+      await this.applicationService.generateResume(applicationId);
+      await this.refreshResumes(applicationId);
+      alert('Resume generated successfully.');
+      this.resumePanels[applicationId] = true;
+    } catch (error) {
+      console.error('Failed to generate resume:', error);
+      alert('Failed to generate resume.');
+    }
+  }
+
+  async refreshResumes(applicationId: number): Promise<void> {
+    try {
+      const items = await this.applicationService.listResumes(applicationId);
+      this.resumesByApp[applicationId] = items;
+    } catch (error) {
+      console.error('Failed to load resumes:', error);
+    }
+  }
+
+  async toggleResumes(applicationId: number): Promise<void> {
+    const currently = !!this.resumePanels[applicationId];
+    this.resumePanels[applicationId] = !currently;
+    if (!currently) {
+      await this.refreshResumes(applicationId);
+    }
   }
 }

@@ -34,6 +34,14 @@ export interface JobApplicationInput {
   notes?: string;
 }
 
+export interface Resume {
+  id: number;
+  applicationId: number;
+  version: number;
+  content: any;
+  createdAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class JobApplicationService {
   applicationsSignal = signal<JobApplication[]>([]);
@@ -121,5 +129,18 @@ export class JobApplicationService {
 
   clearError(): void {
     this.errorSignal.set(null);
+  }
+
+  async listResumes(applicationId: number): Promise<Resume[]> {
+    return await firstValueFrom(
+      this.http.get<Resume[]>(`${API_URL}/${applicationId}/resumes`)
+    );
+  }
+
+  async generateResume(applicationId: number, jobDescriptionOverride?: string): Promise<Resume> {
+    const body = jobDescriptionOverride ? { jobDescription: jobDescriptionOverride } : {};
+    return await firstValueFrom(
+      this.http.post<Resume>(`${API_URL}/${applicationId}/resumes/generate`, body)
+    );
   }
 }

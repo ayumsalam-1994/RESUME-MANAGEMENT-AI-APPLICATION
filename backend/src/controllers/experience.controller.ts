@@ -7,9 +7,9 @@ const ExperienceSchema = z.object({
   company: z.string().min(1),
   position: z.string().min(1),
   location: z.string().optional(),
-  startDate: z.coerce.date(),
-  endDate: z.coerce.date().optional(),
-  current: z.boolean().default(false),
+  startDate: z.string(),
+  endDate: z.string().optional().nullable(),
+  current: z.boolean().optional().default(false),
   description: z.string().optional(),
 });
 
@@ -60,7 +60,17 @@ export async function createExperience(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const data = ExperienceSchema.parse(req.body);
+    const validated = ExperienceSchema.parse(req.body);
+    const data: any = {
+      company: validated.company,
+      position: validated.position,
+      startDate: new Date(validated.startDate),
+      current: validated.current ?? false,
+    };
+    if (validated.location) data.location = validated.location;
+    if (validated.endDate) data.endDate = new Date(validated.endDate);
+    if (validated.description) data.description = validated.description;
+    
     const experience = await experienceService.createExperience(userId, data);
 
     res.status(201).json(experience);
@@ -80,7 +90,23 @@ export async function updateExperience(req: Request, res: Response) {
       return res.status(400).json({ error: 'Invalid experience id' });
     }
 
-    const data = ExperienceSchema.partial().parse(req.body);
+    const validated = ExperienceSchema.partial().parse(req.body);
+    const data: any = {};
+    if (validated.company !== undefined) data.company = validated.company;
+    if (validated.position !== undefined) data.position = validated.position;
+    if (validated.location !== undefined) data.location = validated.location;
+    if (validated.startDate) {
+      data.startDate = new Date(validated.startDate);
+    }
+    if (validated.endDate) {
+      data.endDate = new Date(validated.endDate);
+    }
+    if (validated.current !== undefined) {
+      data.current = validated.current;
+    }
+    if (validated.description !== undefined) {
+      data.description = validated.description;
+    }
 
     const experience = await experienceService.updateExperience(
       experienceId,

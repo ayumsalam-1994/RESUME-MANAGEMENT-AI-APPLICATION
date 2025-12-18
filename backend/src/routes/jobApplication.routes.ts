@@ -7,6 +7,7 @@ import {
   getJobApplications,
   updateJobApplication
 } from "../controllers/jobApplication.controller";
+import { generateResume, listResumes, getResume } from "../controllers/resume.controller";
 
 const router = Router();
 
@@ -17,5 +18,9 @@ router.get("/:applicationId", getJobApplication);
 router.post("/", createJobApplication);
 router.put("/:applicationId", updateJobApplication);
 router.delete("/:applicationId", deleteJobApplication);
+// Resume generation and listing for an application
+router.post("/:applicationId/resumes/generate", generateResume);
+router.get("/:applicationId/resumes", listResumes);
+router.get("/:applicationId/resumes/:resumeId", getResume);
 
 export default router;

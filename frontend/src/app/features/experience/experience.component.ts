@@ -443,14 +443,32 @@ export class ExperienceComponent implements OnInit {
     if (!this.experienceForm?.valid) return;
 
     try {
+      const formValue = this.experienceForm.value;
+      const payload: any = {
+        company: formValue.company,
+        position: formValue.position,
+        startDate: formValue.startDate,
+        current: formValue.current ?? false,
+      };
+      if (formValue.location && formValue.location.trim()) {
+        payload.location = formValue.location;
+      }
+      if (formValue.endDate && formValue.endDate.trim()) {
+        payload.endDate = formValue.endDate;
+      }
+      if (formValue.description && formValue.description.trim()) {
+        payload.description = formValue.description;
+      }
+      
       await this.experienceService.updateExperience(
         experienceId,
-        this.experienceForm.value
+        payload
       );
       this.cancelEdit();
       alert('Experience updated successfully!');
     } catch (error) {
       console.error('Failed to update experience:', error);
+      alert('Failed to update experience. Check console for details.');
     }
   }
 
@@ -458,11 +476,29 @@ export class ExperienceComponent implements OnInit {
     if (!this.experienceForm?.valid) return;
 
     try {
-      await this.experienceService.createExperience(this.experienceForm.value);
+      const formValue = this.experienceForm.value;
+      const payload: any = {
+        company: formValue.company,
+        position: formValue.position,
+        startDate: formValue.startDate,
+        current: formValue.current ?? false,
+      };
+      if (formValue.location && formValue.location.trim()) {
+        payload.location = formValue.location;
+      }
+      if (formValue.endDate && formValue.endDate.trim()) {
+        payload.endDate = formValue.endDate;
+      }
+      if (formValue.description && formValue.description.trim()) {
+        payload.description = formValue.description;
+      }
+      
+      await this.experienceService.createExperience(payload);
       this.cancelEdit();
       alert('Experience added successfully!');
     } catch (error) {
       console.error('Failed to add experience:', error);
+      alert('Failed to add experience. Check console for details.');
     }
   }
 

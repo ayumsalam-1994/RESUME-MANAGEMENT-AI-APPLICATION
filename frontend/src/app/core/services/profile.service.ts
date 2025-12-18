@@ -3,22 +3,22 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 export interface Profile {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   phone?: string;
   linkedin?: string;
   github?: string;
   portfolio?: string;
   location?: string;
   summary?: string;
-  education: Education[];
+  educations: Education[];
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Education {
-  id: string;
-  profileId: string;
+  id: number;
+  profileId: number;
   institution: string;
   degree: string;
   field: string;
@@ -34,8 +34,8 @@ export interface Skill {
 }
 
 export interface UserSkill {
-  userId: string;
-  skillId: string;
+  userId: number;
+  skillId: number;
   level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
   skill: Skill;
 }
@@ -105,7 +105,7 @@ export class ProfileService {
   }
 
   async updateEducation(
-    educationId: string,
+    educationId: number,
     data: Partial<Education>
   ): Promise<Education> {
     return await firstValueFrom(
@@ -113,7 +113,7 @@ export class ProfileService {
     );
   }
 
-  async deleteEducation(educationId: string): Promise<void> {
+  async deleteEducation(educationId: number): Promise<void> {
     await firstValueFrom(
       this.http.delete(`${this.apiUrl}/education/${educationId}`)
     );
@@ -148,7 +148,7 @@ export class ProfileService {
     return userSkill;
   }
 
-  async removeSkill(skillId: string): Promise<void> {
+  async removeSkill(skillId: number): Promise<void> {
     await firstValueFrom(
       this.http.delete(`${this.apiUrl}/skills/${skillId}`)
     );
