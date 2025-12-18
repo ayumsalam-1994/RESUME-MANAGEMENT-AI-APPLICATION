@@ -1,0 +1,262 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// User and Authentication
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("user") // user, admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile         Profile?
+  skills          UserSkill[]
+  experiences     Experience[]
+  projects        Project[]
+  jobApplications JobApplication[]
+  resumes         Resume[]
+
+  @@index([email])
+}
+
+// User Profile
+model Profile {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  phone     String?
+  linkedin  String?
+  github    String?
+  portfolio String?
+  location  String?
+  summary   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  educations Education[]
+}
+
+// Education
+model Education {
+  id          Int       @id @default(autoincrement())
+  profileId   Int
+  institution String
+  degree      String
+  field       String?
+  startDate   DateTime
+  endDate     DateTime?
+  current     Boolean   @default(false)
+  description String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+// Skills
+model Skill {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  category  String? // Technical, Soft, Language, etc.
+  createdAt DateTime @default(now())
+
+  users UserSkill[]
+
+  @@index([category])
+}
+
+model UserSkill {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  skillId   Int
+  level     String? // Beginner, Intermediate, Advanced, Expert
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+}
+
+// Experience
+model Experience {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  company     String
+  position    String
+  location    String?
+  startDate   DateTime
+  endDate     DateTime?
+  current     Boolean   @default(false)
+  description String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bullets ExperienceBullet[]
+}
+
+model ExperienceBullet {
+  id           Int      @id @default(autoincrement())
+  experienceId Int
+  content      String   @db.Text
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+}
+
+// Projects
+model Project {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  title        String
+  summary      String?   @db.Text
+  description  String?   @db.Text
+  role         String?
+  achievements String?   @db.Text
+  techStack    String?   @db.Text // JSON array as string
+  startDate    DateTime?
+  endDate      DateTime?
+  url          String?
+  archived     Boolean   @default(false)
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images ProjectImage[]
+}
+
+model ProjectImage {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  url       String
+  caption   String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// Companies
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String
+  industry  String?
+  size      String?
+  website   String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobApplications JobApplication[]
+
+  @@index([name])
+}
+
+// Job Applications
+model JobApplication {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  companyId      Int
+  jobTitle       String
+  jobDescription String    @db.Text
+  platform       String? // LinkedIn, company site, referral, email
+  applicationUrl String?
+  contactPerson  String?
+  dateApplied    DateTime?
+  status         String    @default("draft") // draft, applied, interviewing, offer, rejected, withdrawn
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company       Company         @relation(fields: [companyId], references: [id])
+  resumes       Resume[]
+  interviews    Interview[]
+  reminders     Reminder[]
+  statusHistory StatusHistory[]
+}
+
+// Resumes
+model Resume {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  jobApplicationId Int?
+  content          String   @db.Text // JSON content
+  version          Int      @default(1)
+  matchScore       Float?
+  scoreBreakdown   String?  @db.Text // JSON
+  suggestions      String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobApplication JobApplication? @relation(fields: [jobApplicationId], references: [id])
+  coverLetters   CoverLetter[]
+}
+
+// Cover Letters
+model CoverLetter {
+  id        Int      @id @default(autoincrement())
+  resumeId  Int
+  content   String   @db.Text
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+}
+
+// Interviews
+model Interview {
+  id               Int       @id @default(autoincrement())
+  jobApplicationId Int
+  round            String
+  date             DateTime?
+  outcome          String? // scheduled, completed, passed, failed
+  notes            String?   @db.Text
+  feedback         String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  jobApplication JobApplication @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+}
+
+// Reminders
+model Reminder {
+  id               Int      @id @default(autoincrement())
+  jobApplicationId Int
+  title            String
+  dueDate          DateTime
+  notes            String?  @db.Text
+  completed        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  jobApplication JobApplication @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+}
+
+// Status History
+model StatusHistory {
+  id               Int      @id @default(autoincrement())
+  jobApplicationId Int
+  status           String
+  changedAt        DateTime @default(now())
+  notes            String?
+
+  jobApplication JobApplication @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+}
