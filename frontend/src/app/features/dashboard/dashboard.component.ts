@@ -39,10 +39,9 @@ import { AuthService } from '../../core/services/auth.service';
             <p>Showcase your projects with images and details</p>
           </div>
 
-          <div class="card">
+          <div class="card" (click)="navigateToJobApplications()">
             <h3>Job Applications</h3>
             <p>Track your job applications and generate tailored resumes</p>
-            <span class="status">Coming Soon</span>
           </div>
 
           <div class="card">
@@ -197,6 +196,10 @@ export class DashboardComponent {
 
   navigateToProjects(): void {
     this.router.navigate(['/projects']);
+  }
+
+  navigateToJobApplications(): void {
+    this.router.navigate(['/job-applications']);
   }
 }
 
