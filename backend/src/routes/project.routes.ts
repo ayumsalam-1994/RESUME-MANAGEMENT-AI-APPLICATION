@@ -13,6 +13,10 @@ import {
   getProject,
   getProjects,
   reorderProjectImages,
+  addProjectBullet,
+  updateProjectBullet,
+  deleteProjectBullet,
+  reorderProjectBullets,
   reorderProjects,
   setArchived,
   updateProject
@@ -63,6 +67,12 @@ router.post("/:projectId/images", addProjectImage);
 router.post("/:projectId/images/upload", upload.single("image"), addProjectImageUpload);
 router.delete("/images/:imageId", deleteProjectImage);
 router.post("/:projectId/images/reorder", reorderProjectImages);
+
+// Bullet routes
+router.post("/:projectId/bullets", addProjectBullet);
+router.put("/bullets/:bulletId", updateProjectBullet);
+router.delete("/bullets/:bulletId", deleteProjectBullet);
+router.post("/:projectId/bullets/reorder", reorderProjectBullets);
 
 // Reorder projects
 router.post("/reorder", reorderProjects);

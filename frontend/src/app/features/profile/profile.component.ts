@@ -27,6 +27,11 @@ import { AuthService } from '../../core/services/auth.service';
           <h3>Personal Information</h3>
           <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
             <div class="form-group">
+              <label>Full Name</label>
+              <input formControlName="name" type="text" required />
+            </div>
+
+            <div class="form-group">
               <label>Location</label>
               <input formControlName="location" type="text" />
             </div>
@@ -462,6 +467,7 @@ export class ProfileComponent implements OnInit {
 
   private initializeForms(): void {
     this.profileForm = this.fb.group({
+      name: ['', Validators.required],
       location: [''],
       phone: [''],
       linkedin: [''],
@@ -488,6 +494,7 @@ export class ProfileComponent implements OnInit {
   private populateProfileForm(profile: any): void {
     if (this.profileForm) {
       this.profileForm.patchValue({
+        name: profile.user?.name || '',
         location: profile.location || '',
         phone: profile.phone || '',
         linkedin: profile.linkedin || '',

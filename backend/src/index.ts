@@ -12,6 +12,7 @@ import experienceRoutes from "./routes/experience.routes.js";
 import projectRoutes from "./routes/project.routes.js";
 import companyRoutes from "./routes/company.routes.js";
 import jobApplicationRoutes from "./routes/jobApplication.routes.js";
+import certificationRoutes from "./routes/certification.routes.js";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,6 +38,7 @@ app.use("/api/experiences", experienceRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/job-applications", jobApplicationRoutes);
+app.use("/api/certifications", certificationRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

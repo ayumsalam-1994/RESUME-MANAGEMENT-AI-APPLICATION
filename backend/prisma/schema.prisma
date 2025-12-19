@@ -26,6 +26,7 @@ model User {
   projects        Project[]
   jobApplications JobApplication[]
   resumes         Resume[]
+  certifications  Certification[]
 
   @@index([email])
 }
@@ -138,6 +139,18 @@ model Project {
 
   user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   images ProjectImage[]
+  bullets ProjectBullet[]
+}
+
+model ProjectBullet {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  content   String   @db.Text
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model ProjectImage {
@@ -207,6 +220,18 @@ model Resume {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobApplication JobApplication? @relation(fields: [jobApplicationId], references: [id])
   coverLetters   CoverLetter[]
+}
+
+model Certification {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  title       String
+  description String?  @db.Text
+  fileUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Cover Letters

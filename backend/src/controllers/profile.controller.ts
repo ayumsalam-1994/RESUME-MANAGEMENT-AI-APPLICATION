@@ -10,6 +10,7 @@ const ProfileUpdateSchema = z.object({
   portfolio: z.string().url().optional(),
   location: z.string().optional(),
   summary: z.string().optional(),
+  name: z.string().min(1).optional(),
 });
 
 const EducationSchema = z.object({
@@ -50,9 +51,16 @@ export async function updateProfile(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const data = ProfileUpdateSchema.parse(req.body);
-    const profile = await profileService.upsertProfile(userId, data);
+    const parsed = ProfileUpdateSchema.parse(req.body);
+    const { name, ...profileData } = parsed;
 
+    await profileService.upsertProfile(userId, profileData);
+
+    if (name && name.trim()) {
+      await profileService.updateUserName(userId, name.trim());
+    }
+
+    const profile = await profileService.getProfile(userId);
     res.json(profile);
   } catch (error: any) {
     if (error instanceof z.ZodError) {

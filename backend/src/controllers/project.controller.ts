@@ -26,6 +26,11 @@ const ProjectSchema = z.object({
     .optional()
 });
 
+const ProjectBulletSchema = z.object({
+  content: z.string().min(1),
+  order: z.number().optional()
+});
+
 const ImageSchema = z.object({
   url: z.string().url(),
   caption: z.string().optional(),
@@ -43,6 +48,10 @@ const ReorderSchema = z.object({
 
 const ProjectReorderSchema = z.object({
   projectIds: z.array(z.number())
+});
+
+const ProjectBulletReorderSchema = z.object({
+  bulletIds: z.array(z.number())
 });
 
 // Get all projects for a user
@@ -120,6 +129,105 @@ export async function updateProject(req: Request, res: Response) {
     const project = await projectService.updateProject(projectId, userId, data);
 
     res.json(project);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Add bullet point
+export async function addProjectBullet(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const projectId = Number(req.params.projectId);
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (Number.isNaN(projectId)) {
+      return res.status(400).json({ error: "Invalid project id" });
+    }
+
+    const data = ProjectBulletSchema.parse(req.body);
+    const bullet = await projectService.addBullet(projectId, userId, data);
+
+    res.status(201).json(bullet);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Update bullet
+export async function updateProjectBullet(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const bulletId = Number(req.params.bulletId);
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (Number.isNaN(bulletId)) {
+      return res.status(400).json({ error: "Invalid bullet id" });
+    }
+
+    const data = ProjectBulletSchema.partial().parse(req.body);
+    const bullet = await projectService.updateBullet(bulletId, userId, data);
+
+    res.json(bullet);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Delete bullet
+export async function deleteProjectBullet(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const bulletId = Number(req.params.bulletId);
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (Number.isNaN(bulletId)) {
+      return res.status(400).json({ error: "Invalid bullet id" });
+    }
+
+    await projectService.deleteBullet(bulletId, userId);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Reorder bullets
+export async function reorderProjectBullets(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const projectId = Number(req.params.projectId);
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (Number.isNaN(projectId)) {
+      return res.status(400).json({ error: "Invalid project id" });
+    }
+
+    const { bulletIds } = ProjectBulletReorderSchema.parse(req.body);
+    const bullets = await projectService.reorderBullets(projectId, userId, bulletIds);
+
+    res.json(bullets);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });

@@ -14,6 +14,12 @@ export interface Profile {
   educations: Education[];
   createdAt: string;
   updatedAt: string;
+  user?: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+  };
 }
 
 export interface Education {
@@ -46,6 +52,15 @@ export interface UserSkill {
 export class ProfileService {
   private apiUrl = 'http://localhost:3000/api/profile';
 
+  private profileUpdateFields = [
+    'phone',
+    'linkedin',
+    'github',
+    'portfolio',
+    'location',
+    'summary',
+  ] as const;
+
   profileSignal = signal<Profile | null>(null);
   skillsSignal = signal<UserSkill[]>([]);
   loadingSignal = signal(false);
@@ -72,13 +87,25 @@ export class ProfileService {
   }
 
   // Update profile
-  async updateProfile(data: Partial<Profile>): Promise<Profile> {
+  async updateProfile(
+    data: Partial<Omit<Profile, 'educations' | 'createdAt' | 'updatedAt' | 'id' | 'userId' | 'user'>> & { name?: string }
+  ): Promise<Profile> {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
 
     try {
+      const payload: Record<string, unknown> = {};
+      for (const key of this.profileUpdateFields) {
+        if (key in data) {
+          payload[key] = (data as any)[key];
+        }
+      }
+      if (data.name !== undefined) {
+        payload['name'] = data.name;
+      }
+
       const updated = await firstValueFrom(
-        this.http.put<Profile>(this.apiUrl, data)
+        this.http.put<Profile>(this.apiUrl, payload)
       );
       this.profileSignal.set(updated);
       return updated;

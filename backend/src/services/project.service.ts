@@ -11,6 +11,9 @@ export class ProjectService {
       include: {
         images: {
           orderBy: { order: "asc" }
+        },
+        bullets: {
+          orderBy: { order: "asc" }
         }
       },
       orderBy: { order: "asc" }
@@ -25,6 +28,9 @@ export class ProjectService {
       where: { id: projectId, userId },
       include: {
         images: {
+          orderBy: { order: "asc" }
+        },
+        bullets: {
           orderBy: { order: "asc" }
         }
       }
@@ -53,6 +59,7 @@ export class ProjectService {
       archived?: boolean;
       order?: number;
       images?: { url: string; caption?: string; order?: number }[];
+      bullets?: { content: string; order?: number }[];
     }
   ) {
     const maxOrder = await prisma.project.findFirst({
@@ -76,10 +83,21 @@ export class ProjectService {
                 order: img.order ?? index
               }))
             }
+          : undefined,
+        bullets: data.bullets
+          ? {
+              create: data.bullets.map((bullet, index) => ({
+                content: bullet.content,
+                order: bullet.order ?? index
+              }))
+            }
           : undefined
       },
       include: {
         images: {
+          orderBy: { order: "asc" }
+        },
+        bullets: {
           orderBy: { order: "asc" }
         }
       }
@@ -95,11 +113,16 @@ export class ProjectService {
       throw new Error("Project not found");
     }
 
+    const { bullets, ...projectData } = data as Record<string, unknown> & { bullets?: unknown };
+
     const project = await prisma.project.update({
       where: { id: projectId },
-      data,
+      data: projectData,
       include: {
         images: {
+          orderBy: { order: "asc" }
+        },
+        bullets: {
           orderBy: { order: "asc" }
         }
       }
@@ -210,12 +233,97 @@ export class ProjectService {
       include: {
         images: {
           orderBy: { order: "asc" }
+        },
+        bullets: {
+          orderBy: { order: "asc" }
         }
       },
       orderBy: { order: "asc" }
     });
 
     return projects;
+  }
+
+  async addBullet(
+    projectId: number,
+    userId: number,
+    data: { content: string; order?: number }
+  ) {
+    const project = await prisma.project.findFirst({ where: { id: projectId, userId } });
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    const maxBullet = await prisma.projectBullet.findFirst({
+      where: { projectId },
+      orderBy: { order: "desc" },
+      select: { order: true }
+    });
+
+    const order = data.order ?? (maxBullet?.order ?? -1) + 1;
+
+    const bullet = await prisma.projectBullet.create({
+      data: {
+        projectId,
+        content: data.content,
+        order
+      }
+    });
+
+    return bullet;
+  }
+
+  async updateBullet(
+    bulletId: number,
+    userId: number,
+    data: { content?: string; order?: number }
+  ) {
+    const bullet = await prisma.projectBullet.findFirst({
+      where: { id: bulletId, project: { userId } }
+    });
+
+    if (!bullet) {
+      throw new Error("Bullet not found");
+    }
+
+    return prisma.projectBullet.update({
+      where: { id: bulletId },
+      data
+    });
+  }
+
+  async deleteBullet(bulletId: number, userId: number) {
+    const bullet = await prisma.projectBullet.findFirst({
+      where: { id: bulletId, project: { userId } }
+    });
+
+    if (!bullet) {
+      throw new Error("Bullet not found");
+    }
+
+    await prisma.projectBullet.delete({ where: { id: bulletId } });
+    return { success: true };
+  }
+
+  async reorderBullets(projectId: number, userId: number, bulletIds: number[]) {
+    const project = await prisma.project.findFirst({ where: { id: projectId, userId } });
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    const updates = bulletIds.map((id, index) =>
+      prisma.projectBullet.update({
+        where: { id },
+        data: { order: index }
+      })
+    );
+
+    await prisma.$transaction(updates);
+
+    return prisma.projectBullet.findMany({
+      where: { projectId },
+      orderBy: { order: "asc" }
+    });
   }
 }
 

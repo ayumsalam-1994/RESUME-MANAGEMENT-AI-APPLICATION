@@ -39,6 +39,9 @@ export class ProfileService {
         educations: {
           orderBy: { startDate: 'desc' },
         },
+        user: {
+          select: { id: true, email: true, name: true, role: true },
+        },
       },
     });
 
@@ -194,6 +197,14 @@ export class ProfileService {
     });
 
     return categories.map((c: { category: string }) => c.category);
+  }
+
+  async updateUserName(userId: number, name: string) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { name },
+      select: { id: true, email: true, name: true, role: true },
+    });
   }
 }
 

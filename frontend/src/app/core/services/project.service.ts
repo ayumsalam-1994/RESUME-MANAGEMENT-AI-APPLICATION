@@ -12,6 +12,13 @@ export interface ProjectImage {
   order: number;
 }
 
+export interface ProjectBullet {
+  id: number;
+  projectId: number;
+  content: string;
+  order: number;
+}
+
 export interface Project {
   id: number;
   userId: number;
@@ -19,7 +26,6 @@ export interface Project {
   summary?: string;
   description?: string;
   role?: string;
-  achievements?: string;
   techStack?: string;
   startDate?: string;
   endDate?: string;
@@ -29,6 +35,7 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   images: ProjectImage[];
+  bullets: ProjectBullet[];
 }
 
 export interface ProjectInput {
@@ -36,7 +43,6 @@ export interface ProjectInput {
   summary?: string;
   description?: string;
   role?: string;
-  achievements?: string;
   techStack?: string;
   startDate?: string;
   endDate?: string;
@@ -214,6 +220,53 @@ export class ProjectService {
     );
 
     return images;
+  }
+
+  async addBullet(
+    projectId: number,
+    content: string,
+    order?: number
+  ): Promise<ProjectBullet> {
+    const bullet = await firstValueFrom(
+      this.http.post<ProjectBullet>(`${API_URL}/${projectId}/bullets`, {
+        content,
+        order,
+      })
+    );
+
+    this.projectsSignal.update((list) =>
+      list.map((p) =>
+        p.id === projectId
+          ? { ...p, bullets: [...(p.bullets || []), bullet].sort((a, b) => a.order - b.order) }
+          : p
+      )
+    );
+
+    return bullet;
+  }
+
+  async deleteBullet(projectId: number, bulletId: number): Promise<void> {
+    await firstValueFrom(this.http.delete(`${API_URL}/bullets/${bulletId}`));
+
+    this.projectsSignal.update((list) =>
+      list.map((p) =>
+        p.id === projectId ? { ...p, bullets: p.bullets.filter((b) => b.id !== bulletId) } : p
+      )
+    );
+  }
+
+  async reorderBullets(projectId: number, bulletIds: number[]): Promise<ProjectBullet[]> {
+    const bullets = await firstValueFrom(
+      this.http.post<ProjectBullet[]>(`${API_URL}/${projectId}/bullets/reorder`, {
+        bulletIds,
+      })
+    );
+
+    this.projectsSignal.update((list) =>
+      list.map((p) => (p.id === projectId ? { ...p, bullets } : p))
+    );
+
+    return bullets;
   }
 
   async reorderProjects(projectIds: number[]): Promise<Project[]> {

@@ -61,16 +61,6 @@ import {
                   </div>
 
                   <div class="form-group">
-                    <label>Description</label>
-                    <textarea formControlName="description" rows="3"></textarea>
-                  </div>
-
-                  <div class="form-group">
-                    <label>Achievements</label>
-                    <textarea formControlName="achievements" rows="3"></textarea>
-                  </div>
-
-                  <div class="form-group">
                     <label>Tech Stack (comma-separated)</label>
                     <input formControlName="techStack" type="text" />
                   </div>
@@ -122,17 +112,66 @@ import {
                     @if (project.summary) {
                       <p class="summary">{{ project.summary }}</p>
                     }
-                    @if (project.description) {
-                      <p class="description">{{ project.description }}</p>
-                    }
-                    @if (project.achievements) {
-                      <p class="achievements">Achievements: {{ project.achievements }}</p>
+                    @if (project.bullets?.length) {
+                      <ul class="bullets">
+                        @for (bullet of project.bullets; track bullet.id; let bIdx = $index) {
+                          <li>
+                            <span>{{ bullet.content }}</span>
+                            <div class="bullet-controls">
+                              <button
+                                class="ghost small"
+                                (click)="moveBullet(project.id, bullet.id, 'up')"
+                                [disabled]="bIdx === 0"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                class="ghost small"
+                                (click)="moveBullet(project.id, bullet.id, 'down')"
+                                [disabled]="bIdx === (project.bullets.length - 1)"
+                              >
+                                ↓
+                              </button>
+                              <button
+                                class="danger small"
+                                (click)="deleteBullet(project.id, bullet.id)"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </li>
+                        }
+                      </ul>
                     }
                     @if (project.techStack) {
                       <p class="tech">Tech Stack: {{ project.techStack }}</p>
                     }
                   </div>
                   <div class="chip" *ngIf="project.archived">Archived</div>
+                </div>
+
+                <div class="bullet-actions">
+                  @if (addingBulletFor === project.id) {
+                    <form (ngSubmit)="saveBullet(project.id)">
+                      <div class="form-group">
+                        <textarea
+                          [(ngModel)]="bulletDrafts[project.id]"
+                          [name]="'bullet-' + project.id"
+                          rows="2"
+                          placeholder="Add a bullet point"
+                          required
+                        ></textarea>
+                      </div>
+                      <div class="actions">
+                        <button type="submit" class="primary small">Add Bullet</button>
+                        <button type="button" class="small" (click)="cancelBullet()">Cancel</button>
+                      </div>
+                    </form>
+                  } @else {
+                    <button class="secondary small" (click)="startAddBullet(project.id)">
+                      + Add Bullet
+                    </button>
+                  }
                 </div>
 
                 <!-- Images -->
@@ -225,13 +264,64 @@ import {
               </div>
 
               <div class="form-group">
-                <label>Description</label>
-                <textarea formControlName="description" rows="3"></textarea>
-              </div>
+                <label>Bullet Points</label>
 
-              <div class="form-group">
-                <label>Achievements</label>
-                <textarea formControlName="achievements" rows="3"></textarea>
+                @if (newProjectBullets.length) {
+                  <ul class="bullets">
+                    @for (bullet of newProjectBullets; track bullet; let bIdx = $index) {
+                      <li>
+                        <span>{{ bullet }}</span>
+                        <div class="bullet-controls">
+                          <button
+                            class="ghost small"
+                            type="button"
+                            (click)="moveNewProjectBullet(bIdx, 'up')"
+                            [disabled]="bIdx === 0"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            class="ghost small"
+                            type="button"
+                            (click)="moveNewProjectBullet(bIdx, 'down')"
+                            [disabled]="bIdx === newProjectBullets.length - 1"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            class="danger small"
+                            type="button"
+                            (click)="removeNewProjectBullet(bIdx)"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+
+                <div class="form-group">
+                  <textarea
+                    [(ngModel)]="newProjectBullet"
+                    name="newProjectBullet"
+                    rows="2"
+                    placeholder="Add a bullet point"
+                  ></textarea>
+                </div>
+                <div class="actions">
+                  <button type="button" class="primary small" (click)="addNewProjectBullet()">
+                    Add Bullet
+                  </button>
+                  <button
+                    type="button"
+                    class="small"
+                    (click)="clearNewProjectBullets()"
+                    [disabled]="!newProjectBullets.length"
+                  >
+                    Clear Bullets
+                  </button>
+                </div>
               </div>
 
               <div class="form-group">
@@ -370,8 +460,6 @@ import {
     }
 
     .summary,
-    .description,
-    .achievements,
     .tech {
       margin: 6px 0;
       color: #444;
@@ -382,6 +470,32 @@ import {
       margin: 12px 0;
       display: grid;
       gap: 8px;
+    }
+
+    .bullets {
+      margin: 10px 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+
+      li {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+
+      span {
+        flex: 1;
+      }
+    }
+
+    .bullet-controls {
+      display: inline-flex;
+      gap: 6px;
+    }
+
+    .bullet-actions {
+      margin-top: 10px;
     }
 
     .image-item {
@@ -481,6 +595,10 @@ export class ProjectComponent implements OnInit {
   addingImageFor: number | null = null;
   includeArchived = false;
   imageFile: File | null = null;
+  addingBulletFor: number | null = null;
+  bulletDrafts: Record<number, string> = {};
+  newProjectBullets: string[] = [];
+  newProjectBullet = '';
 
   constructor(
     public projectService: ProjectService,
@@ -496,9 +614,7 @@ export class ProjectComponent implements OnInit {
     this.projectForm = this.fb.group({
       title: ['', Validators.required],
       summary: [''],
-      description: [''],
       role: [''],
-      achievements: [''],
       techStack: [''],
       startDate: [''],
       endDate: [''],
@@ -530,6 +646,10 @@ export class ProjectComponent implements OnInit {
     this.isAddingNew = true;
     this.editingId = null;
     this.projectForm?.reset({ archived: false });
+    this.newProjectBullets = [];
+    this.newProjectBullet = '';
+    this.addingBulletFor = null;
+    this.bulletDrafts = {};
   }
 
   startEdit(project: Project): void {
@@ -538,22 +658,28 @@ export class ProjectComponent implements OnInit {
     this.projectForm?.patchValue({
       title: project.title,
       summary: project.summary || '',
-      description: project.description || '',
       role: project.role || '',
-      achievements: project.achievements || '',
       techStack: project.techStack || '',
       startDate: project.startDate ? project.startDate.split('T')[0] : '',
       endDate: project.endDate ? project.endDate.split('T')[0] : '',
       url: project.url || '',
       archived: project.archived
     });
+    this.addingBulletFor = null;
   }
 
   async addProject(): Promise<void> {
     if (!this.projectForm?.valid) return;
 
     try {
-      await this.projectService.createProject(this.projectForm.value);
+      const project = await this.projectService.createProject(this.projectForm.value);
+
+      if (this.newProjectBullets.length) {
+        for (let i = 0; i < this.newProjectBullets.length; i++) {
+          await this.projectService.addBullet(project.id, this.newProjectBullets[i], i);
+        }
+      }
+
       this.cancelEdit();
       alert('Project added successfully!');
     } catch (error) {
@@ -655,6 +781,10 @@ export class ProjectComponent implements OnInit {
     this.editingId = null;
     this.addingImageFor = null;
     this.imageFile = null;
+    this.addingBulletFor = null;
+    this.bulletDrafts = {};
+    this.newProjectBullets = [];
+    this.newProjectBullet = '';
     this.projectForm?.reset({ archived: false });
     this.imageForm?.reset();
   }
@@ -695,5 +825,91 @@ export class ProjectComponent implements OnInit {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     this.imageFile = file ?? null;
+  }
+
+  startAddBullet(projectId: number): void {
+    this.addingBulletFor = projectId;
+    this.bulletDrafts[projectId] = '';
+  }
+
+  cancelBullet(): void {
+    if (this.addingBulletFor !== null) {
+      delete this.bulletDrafts[this.addingBulletFor];
+    }
+    this.addingBulletFor = null;
+  }
+
+  async saveBullet(projectId: number): Promise<void> {
+    const content = (this.bulletDrafts[projectId] || '').trim();
+    if (!content) return;
+
+    try {
+      await this.projectService.addBullet(projectId, content);
+      this.bulletDrafts[projectId] = '';
+      this.addingBulletFor = null;
+      alert('Bullet added successfully!');
+    } catch (error) {
+      console.error('Failed to add bullet:', error);
+    }
+  }
+
+  async deleteBullet(projectId: number, bulletId: number): Promise<void> {
+    if (!confirm('Delete this bullet point?')) return;
+
+    try {
+      await this.projectService.deleteBullet(projectId, bulletId);
+      alert('Bullet deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete bullet:', error);
+    }
+  }
+
+  async moveBullet(projectId: number, bulletId: number, direction: 'up' | 'down'): Promise<void> {
+    const projects = this.projectService.projectsSignal();
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+
+    const bullets = [...(project.bullets || [])];
+    const index = bullets.findIndex((b) => b.id === bulletId);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= bullets.length) return;
+
+    [bullets[index], bullets[targetIndex]] = [bullets[targetIndex], bullets[index]];
+    const normalized = bullets.map((b, i) => ({ ...b, order: i }));
+
+    const updatedProjects = projects.map((p) => (p.id === projectId ? { ...p, bullets: normalized } : p));
+    this.projectService.projectsSignal.set(updatedProjects);
+
+    try {
+      await this.projectService.reorderBullets(projectId, normalized.map((b) => b.id));
+    } catch (error) {
+      console.error('Failed to reorder bullets:', error);
+    }
+  }
+
+  addNewProjectBullet(): void {
+    const content = this.newProjectBullet.trim();
+    if (!content) return;
+    this.newProjectBullets = [...this.newProjectBullets, content];
+    this.newProjectBullet = '';
+  }
+
+  removeNewProjectBullet(index: number): void {
+    this.newProjectBullets = this.newProjectBullets.filter((_, i) => i !== index);
+  }
+
+  moveNewProjectBullet(index: number, direction: 'up' | 'down'): void {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= this.newProjectBullets.length) return;
+    const updated = [...this.newProjectBullets];
+    [updated[index], updated[target]] = [updated[target], updated[index]];
+    this.newProjectBullets = updated;
+  }
+
+  clearNewProjectBullets(): void {
+    this.newProjectBullets = [];
+    this.newProjectBullet = '';
   }
 }
