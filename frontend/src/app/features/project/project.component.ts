@@ -477,11 +477,21 @@ import {
       padding-left: 18px;
       display: grid;
       gap: 8px;
+      list-style-type: none;
 
       li {
         display: flex;
         gap: 10px;
         align-items: flex-start;
+        position: relative;
+
+        &::before {
+          content: '•';
+          position: absolute;
+          left: -18px;
+          font-size: 18px;
+          line-height: 1.6;
+        }
       }
 
       span {

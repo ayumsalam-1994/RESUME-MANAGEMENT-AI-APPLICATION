@@ -56,8 +56,32 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
                   <!-- Bullets Display -->
                   @if (exp.bullets && exp.bullets.length > 0) {
                     <ul class="bullets">
-                      @for (bullet of exp.bullets; track bullet.id) {
-                        <li>{{ bullet.content }}</li>
+                      @for (bullet of exp.bullets; track bullet.id; let bIdx = $index) {
+                        <li>
+                          <span>{{ bullet.content }}</span>
+                          <div class="bullet-controls">
+                            <button
+                              class="ghost small"
+                              (click)="moveBullet(exp.id, bullet.id, 'up')"
+                              [disabled]="bIdx === 0"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              class="ghost small"
+                              (click)="moveBullet(exp.id, bullet.id, 'down')"
+                              [disabled]="bIdx === exp.bullets.length - 1"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              class="danger small"
+                              (click)="deleteBullet(exp.id, bullet.id)"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </li>
                       }
                     </ul>
                   }
@@ -278,12 +302,42 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
     .bullets {
       margin: 15px 0;
       padding-left: 20px;
+      display: grid;
+      gap: 8px;
+      list-style-type: none;
 
       li {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
         margin: 8px 0;
         color: #555;
         line-height: 1.6;
+        position: relative;
+
+        &::before {
+          content: '•';
+          position: absolute;
+          left: -20px;
+          font-size: 18px;
+          line-height: 1.6;
+        }
       }
+
+      span {
+        flex: 1;
+      }
+    }
+
+    .bullet-controls {
+      display: inline-flex;
+      gap: 6px;
+    }
+
+    button.ghost {
+      background: #f1f3f5;
+      color: #333;
+      border: 1px solid #ddd;
     }
 
     .actions {
@@ -531,6 +585,44 @@ export class ExperienceComponent implements OnInit {
       alert('Bullet point added successfully!');
     } catch (error) {
       console.error('Failed to add bullet:', error);
+    }
+  }
+
+  async deleteBullet(experienceId: string, bulletId: string): Promise<void> {
+    if (!confirm('Delete this bullet point?')) return;
+
+    try {
+      await this.experienceService.deleteBullet(experienceId, bulletId);
+      alert('Bullet deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete bullet:', error);
+    }
+  }
+
+  async moveBullet(experienceId: string, bulletId: string, direction: 'up' | 'down'): Promise<void> {
+    const experiences = this.experienceService.experiencesSignal();
+    const experience = experiences.find((e) => e.id === experienceId);
+    if (!experience) return;
+
+    const bullets = [...experience.bullets];
+    const index = bullets.findIndex((b) => b.id === bulletId);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= bullets.length) return;
+
+    [bullets[index], bullets[targetIndex]] = [bullets[targetIndex], bullets[index]];
+    const normalized = bullets.map((b, i) => ({ ...b, order: i }));
+
+    const updatedExperiences = experiences.map((e) =>
+      e.id === experienceId ? { ...e, bullets: normalized } : e
+    );
+    this.experienceService.experiencesSignal.set(updatedExperiences);
+
+    try {
+      await this.experienceService.reorderBullets(experienceId, normalized.map((b) => b.id));
+    } catch (error) {
+      console.error('Failed to reorder bullets:', error);
     }
   }
 
