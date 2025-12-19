@@ -112,7 +112,7 @@ import {
                     @if (project.summary) {
                       <p class="summary">{{ project.summary }}</p>
                     }
-                    @if (project.bullets?.length) {
+                    @if (project.bullets.length) {
                       <ul class="bullets">
                         @for (bullet of project.bullets; track bullet.id; let bIdx = $index) {
                           <li>

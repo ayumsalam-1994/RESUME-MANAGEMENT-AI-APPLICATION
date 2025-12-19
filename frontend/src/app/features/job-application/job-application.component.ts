@@ -135,36 +135,12 @@ import { ProjectService } from '../../core/services/project.service';
                 <div>
                   <h3>{{ app.jobTitle }}</h3>
                   <p class="company">{{ app.company?.name || 'Unknown Company' }}</p>
-                  <span class="status-badge" [attr.data-status]="app.status">{{ app.status }}</span>
+                  @if (app.dateApplied) {
+                    <p class="date-applied">Applied: {{ app.dateApplied | date: 'MMM dd, yyyy' }}</p>
+                  }
                 </div>
+                <span class="status-badge" [attr.data-status]="app.status">{{ app.status }}</span>
               </div>
-
-              <div class="job-info">
-                @if (app.platform) {
-                  <p><strong>Platform:</strong> {{ app.platform }}</p>
-                }
-                @if (app.applicationUrl) {
-                  <p><strong>URL:</strong> <a [href]="app.applicationUrl" target="_blank">{{ app.applicationUrl }}</a></p>
-                }
-                @if (app.contactPerson) {
-                  <p><strong>Contact:</strong> {{ app.contactPerson }}</p>
-                }
-                @if (app.dateApplied) {
-                  <p><strong>Applied:</strong> {{ app.dateApplied | date: 'MMM dd, yyyy' }}</p>
-                }
-              </div>
-
-              <div class="description">
-                <h4>Job Description</h4>
-                <p>{{ app.jobDescription }}</p>
-              </div>
-
-              @if (app.notes) {
-                <div class="notes">
-                  <h4>Notes</h4>
-                  <p>{{ app.notes }}</p>
-                </div>
-              }
 
               <div class="actions">
                 <button class="secondary" (click)="startEdit(app)">Edit</button>
@@ -434,6 +410,7 @@ import { ProjectService } from '../../core/services/project.service';
     .card-header {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
       margin-bottom: 12px;
     }
 
@@ -442,9 +419,15 @@ import { ProjectService } from '../../core/services/project.service';
     }
 
     .company {
-      margin: 0;
+      margin: 0 0 4px;
       color: #555;
       font-weight: 600;
+    }
+
+    .date-applied {
+      margin: 0;
+      color: #999;
+      font-size: 13px;
     }
 
     .status-badge {
@@ -890,20 +873,26 @@ export class JobApplicationComponent implements OnInit {
 
   async refreshResumes(applicationId: number): Promise<void> {
     try {
+      console.log('Refreshing resumes for application:', applicationId);
       const items = await this.applicationService.listResumes(applicationId);
+      console.log('Received resumes:', items);
       const parsed = items.map((r: any) => ({
         ...r,
         parsed: this.safeParse(r.content)
       }));
       this.resumesByApp[applicationId] = parsed;
-    } catch (error) {
+      console.log('Parsed resumes:', parsed);
+    } catch (error: any) {
       console.error('Failed to load resumes:', error);
+      alert(`Failed to load resumes: ${error?.error?.error || error.message || 'Unknown error'}`);
+      this.resumesByApp[applicationId] = [];
     }
   }
 
   async toggleResumes(applicationId: number): Promise<void> {
     const currently = !!this.resumePanels[applicationId];
     this.resumePanels[applicationId] = !currently;
+    console.log('Toggle resumes panel for app', applicationId, ':', !currently);
     if (!currently) {
       await this.refreshResumes(applicationId);
     }
@@ -985,11 +974,15 @@ export class JobApplicationComponent implements OnInit {
         projects.filter((p: any) => !p.archived).forEach((proj: any) => {
           projectSection += `\nProject: ${proj.title}\n`;
           if (proj.summary) projectSection += `Summary: ${proj.summary}\n`;
-          if (proj.description) projectSection += `Description: ${proj.description}\n`;
           if (proj.role) projectSection += `Role: ${proj.role}\n`;
-          if (proj.achievements) projectSection += `Achievements: ${proj.achievements}\n`;
           if (proj.techStack) {
             projectSection += `Technologies: ${proj.techStack}\n`;
+          }
+          if (proj.bullets && proj.bullets.length > 0) {
+            projectSection += `Key Features/Achievements:\n`;
+            proj.bullets.forEach((bullet: any) => {
+              projectSection += `  - ${bullet.content}\n`;
+            });
           }
           if (proj.url) projectSection += `URL: ${proj.url}\n`;
           if (proj.startDate) {
