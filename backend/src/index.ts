@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import type { Request, Response } from "express";
 
-import { config } from "./config.js";
+import { validateEnv, config } from "./validateEnv.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import authRoutes from "./routes/auth.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
@@ -13,6 +13,9 @@ import projectRoutes from "./routes/project.routes.js";
 import companyRoutes from "./routes/company.routes.js";
 import jobApplicationRoutes from "./routes/jobApplication.routes.js";
 import certificationRoutes from "./routes/certification.routes.js";
+
+// Validate environment variables on startup
+validateEnv();
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

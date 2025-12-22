@@ -377,7 +377,6 @@ export class ResumeService {
       doc.x = rightX;
       doc.list(right, { bulletRadius: 2, textIndent: 10, width: columnWidth, align: "left" });
       doc.x = margin;
-      
       doc.moveDown(0.3);
     }
 
@@ -388,7 +387,7 @@ export class ResumeService {
       sectionHeader("Projects");
       doc.fontSize(12).font("Times-Roman").fillColor("#000000");
       resumeContent.projects.forEach((proj: any) => {
-        const headerRight = [proj.start, proj.end].filter(Boolean).join(" | ");
+        const headerRight = [proj.start, proj.end].filter(Boolean).join(" - ");
         sectionHeader(proj.title || "Project", headerRight || undefined);
         if (proj.bullets && proj.bullets.length > 0) {
           doc.list(proj.bullets, { bulletRadius: 2, textIndent: 10, width: contentWidth });
@@ -404,7 +403,7 @@ export class ResumeService {
       sectionHeader("Experience");
       doc.fontSize(12).font("Times-Roman").fillColor("#000000");
       resumeContent.experience.forEach((exp: any) => {
-        const right = [exp.start, exp.end].filter(Boolean).join(" | ");
+        const right = [exp.start, exp.end].filter(Boolean).join(" - ");
         sectionHeader(`${exp.role || "Role"} - ${exp.company || "Company"}`, right || undefined);
         if (exp.bullets && exp.bullets.length > 0) {
           doc.list(exp.bullets, { bulletRadius: 2, textIndent: 10, width: contentWidth });
@@ -422,7 +421,7 @@ export class ResumeService {
       resumeContent.education.forEach((edu: any) => {
         doc.font("Times-Bold").text(`${edu.degree || "Degree"} in ${edu.field || "Field"}`);
         doc.font("Times-Roman");
-        const right = [edu.institution, [edu.start, edu.end].filter(Boolean).join(" | ")].filter(Boolean).join(" | ");
+        const right = [edu.institution, [edu.start, edu.end].filter(Boolean).join(" - ")].filter(Boolean).join(" | ");
         if (right) {
           doc.text(right, { width: contentWidth, lineGap: 2 });
         }

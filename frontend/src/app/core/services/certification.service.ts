@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
 import { firstValueFrom } from 'rxjs';
 
 export interface Certification {
@@ -20,7 +21,7 @@ export interface CertificationInput {
 
 @Injectable({ providedIn: 'root' })
 export class CertificationService {
-  private apiUrl = 'http://localhost:3000/api/certifications';
+  private apiUrl = `${environment.apiUrl}/certifications`;
 
   certificationsSignal = signal<Certification[]>([]);
   loadingSignal = signal(false);

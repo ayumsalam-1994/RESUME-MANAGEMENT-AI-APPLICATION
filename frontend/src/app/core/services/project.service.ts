@@ -1,8 +1,9 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
-const API_URL = 'http://localhost:3000/api/projects';
+const API_URL = `${environment.apiUrl}/projects`;
 
 export interface ProjectImage {
   id: number;

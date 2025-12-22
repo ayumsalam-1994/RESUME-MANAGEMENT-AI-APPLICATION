@@ -2,8 +2,9 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { Company } from './company.service';
+import { environment } from '../../../environments/environment';
 
-const API_URL = 'http://localhost:3000/api/job-applications';
+const API_URL = `${environment.apiUrl}/job-applications`;
 
 export interface JobApplication {
   id: number;
