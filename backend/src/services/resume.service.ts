@@ -1,11 +1,23 @@
-import OpenAI from "openai";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { prisma } from "../db/prisma";
 import { config } from "../config";
 import PDFDocument from "pdfkit";
 
 export class ResumeService {
-  private client = new OpenAI({ apiKey: config.openAiKey });
+  private genAI?: GoogleGenerativeAI;
+  private model?: any;
+  private lastGenerationTime: Map<number, number> = new Map(); // userId -> timestamp
+  private readonly RATE_LIMIT_MS = 60000; // 1 minute in milliseconds
+
+  private initializeGemini() {
+    if (!this.genAI) {
+      if (!config.geminiKey) {
+        throw new Error("Gemini API key is missing. Set GEMINI_API_KEY in your environment.");
+      }
+      this.genAI = new GoogleGenerativeAI(config.geminiKey);
+      this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    }
+  }
 
   async getResumesForApplication(userId: number, applicationId: number) {
     const app = await prisma.jobApplication.findFirst({
@@ -26,10 +38,23 @@ export class ResumeService {
     return resume;
   }
 
-  async generateForApplication(userId: number, applicationId: number, jobDescriptionOverride?: string) {
-    if (!config.openAiKey) {
-      throw new Error("OpenAI API key is missing. Set OPENAI_API_KEY in your environment.");
+  async generateForApplication(userId: number, applicationId: number, jobDescriptionOverride?: string, customPrompt?: string) {
+    this.initializeGemini();
+
+    // Rate limiting check
+    const now = Date.now();
+    const lastGeneration = this.lastGenerationTime.get(userId);
+    
+    if (lastGeneration) {
+      const timeSinceLastGeneration = now - lastGeneration;
+      const remainingTime = this.RATE_LIMIT_MS - timeSinceLastGeneration;
+      
+      if (remainingTime > 0) {
+        const secondsRemaining = Math.ceil(remainingTime / 1000);
+        throw new Error(`Rate limit exceeded. Please wait ${secondsRemaining} seconds before generating another resume.`);
+      }
     }
+
     // Gather user data
     const [user, profile, experiences, projects, application, userSkills] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
@@ -64,7 +89,9 @@ export class ResumeService {
       throw new Error("Job description is required to generate a resume");
     }
 
-    const system = "You are an expert ATS resume writer. Produce a concise, ATS-safe resume JSON based on the user's profile and the job description. Avoid images, tables, and fancy formatting. Use month-year date strings (e.g., Jan 2024).";
+    // Use custom prompt if provided, otherwise use default
+    const defaultSystemPrompt = "You are an expert ATS resume writer. Produce a concise, ATS-safe resume JSON based on the user's profile and the job description. Avoid images, tables, and fancy formatting. Use month-year date strings (e.g., Jan 2024). Respond ONLY with valid JSON, wrapped in ```json...``` if needed.";
+    const system = customPrompt || defaultSystemPrompt;
 
     const userPayload = {
       application: {
@@ -101,110 +128,119 @@ export class ResumeService {
       }))
     };
 
-    const prompt: ChatCompletionMessageParam[] = [
-      { role: "system", content: system },
-      {
-        role: "user",
-        content: JSON.stringify({
-          instructions: {
-            outputFormat: {
-              type: "json",
-              schema: {
-                name: "string",
-                contact: {
-                  location: "string",
-                  phone: "string",
-                  email: "string",
-                  linkedin: "string",
-                  github: "string",
-                  portfolio: "string"
-                },
-                summary: "string",
-                skills: "string[]",
-                projects: [
-                  {
-                    title: "string",
-                    start: "string",
-                    end: "string",
-                    bullets: "string[]",
-                    tech: "string[]"
-                  }
-                ],
-                experience: [
-                  {
-                    company: "string",
-                    role: "string",
-                    start: "string",
-                    end: "string",
-                    bullets: "string[]"
-                  }
-                ],
-                education: [
-                  {
-                    degree: "string",
-                    field: "string",
-                    institution: "string",
-                    start: "string",
-                    end: "string"
-                  }
-                ],
-                certifications: [
-                  {
-                    title: "string"
-                  }
-                ]
-              }
+    const userMessage = JSON.stringify({
+      instructions: {
+        outputFormat: {
+          type: "json",
+          schema: {
+            name: "string",
+            contact: {
+              location: "string",
+              phone: "string",
+              email: "string",
+              linkedin: "string",
+              github: "string",
+              portfolio: "string"
             },
-            style: {
-              atsSafe: true,
-              avoidFirstPerson: true,
-              focusOnImpact: true,
-              bulletCount: 4
-            }
-          },
-          data: userPayload
-        })
-      }
-    ];
+            summary: "string",
+            skills: "string[]",
+            projects: [
+              {
+                title: "string",
+                start: "string",
+                end: "string",
+                bullets: "string[]",
+                tech: "string[]"
+              }
+            ],
+            experience: [
+              {
+                company: "string",
+                role: "string",
+                start: "string",
+                end: "string",
+                bullets: "string[]"
+              }
+            ],
+            education: [
+              {
+                degree: "string",
+                field: "string",
+                institution: "string",
+                start: "string",
+                end: "string"
+              }
+            ],
+            certifications: [
+              {
+                title: "string"
+              }
+            ]
+          }
+        },
+        style: {
+          atsSafe: true,
+          avoidFirstPerson: true,
+          focusOnImpact: true,
+          bulletCount: 4
+        }
+      },
+      data: userPayload
+    });
 
-    let content = "{}";
     try {
-      const completion = await this.client.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: prompt,
-        temperature: 0.2
+      const fullPrompt = `${system}\n\n${userMessage}`;
+      
+      // console.log("=== GEMINI API CALL ===");
+      // console.log("Model:", this.model);
+      // console.log("System Prompt:", system);
+      // console.log("User Payload Data:", JSON.stringify(userPayload, null, 2));
+      // console.log("Full Instructions:", JSON.stringify(JSON.parse(userMessage), null, 2));
+      // console.log("========================");
+      
+      const response = await this.model!.generateContent(fullPrompt);
+
+      const responseText = response.response.text();
+
+      // Extract JSON from response (handle markdown-wrapped JSON)
+      let content = responseText;
+      const jsonMatch = responseText.match(/```json\n?([\s\S]*?)\n?```/);
+      if (jsonMatch && jsonMatch[1]) {
+        content = jsonMatch[1].trim();
+      }
+
+      // Validate it's valid JSON
+      try {
+        JSON.parse(content);
+      } catch {
+        throw new Error("Generated content is not valid JSON. Please try again or use the Copy Prompt button to refine manually.");
+      }
+
+      // Versioning: next version number
+      const latest = await prisma.resume.findFirst({
+        where: { userId, jobApplicationId: applicationId },
+        orderBy: { version: "desc" },
+        select: { version: true }
       });
-      content = completion.choices[0]?.message?.content ?? "{}";
+      const nextVersion = (latest?.version ?? 0) + 1;
+
+      const resume = await prisma.resume.create({
+        data: {
+          userId,
+          jobApplicationId: applicationId,
+          content,
+          version: nextVersion
+        }
+      });
+
+      // Update last generation timestamp after successful creation
+      this.lastGenerationTime.set(userId, Date.now());
+
+      return resume;
     } catch (err: any) {
-      const status = err?.status ?? err?.statusCode;
-      const msg = err?.message || "Unknown OpenAI error";
-      // Graceful fallback on rate limit/quota or network failures
-      if (status === 429 || (typeof msg === "string" && msg.includes("quota"))) {
-        const fallback = this.generateFallbackResume({ user, profile, experiences, projects, application, userSkills, jobDescription });
-        content = JSON.stringify(fallback);
-      } else {
-        throw new Error(`OpenAI request failed: ${msg}`);
-      }
+      const msg = err?.message || "Unknown error generating resume with Gemini API";
+      throw new Error(`Resume generation failed: ${msg}. Please use the Copy Prompt button to generate manually.`);
     }
-
-    // Versioning: next version number
-    const latest = await prisma.resume.findFirst({
-      where: { userId, jobApplicationId: applicationId },
-      orderBy: { version: "desc" },
-      select: { version: true }
-    });
-    const nextVersion = (latest?.version ?? 0) + 1;
-
-    const resume = await prisma.resume.create({
-      data: {
-        userId,
-        jobApplicationId: applicationId,
-        content,
-        version: nextVersion
-      }
-    });
-
-    return resume;
   }
 
   async deleteResume(resumeId: number, userId: number) {
@@ -254,94 +290,6 @@ export class ResumeService {
     });
 
     return resume;
-  }
-
-  private generateFallbackResume({
-    user,
-    profile,
-    experiences,
-    projects,
-    application,
-    userSkills
-  }: any) {
-    const skills: string[] = Array.isArray(userSkills)
-      ? userSkills.map((us: any) => us.skill?.name).filter(Boolean)
-      : [];
-
-    const projectTechs: string[] = [];
-    for (const p of projects || []) {
-      let tech: string[] = [];
-      if (typeof p.techStack === "string") {
-        try {
-          const parsed = JSON.parse(p.techStack);
-          if (Array.isArray(parsed)) tech = parsed.filter((x: any) => typeof x === "string");
-        } catch {
-          // Fallback: comma-separated string
-          tech = p.techStack.split(",").map((s: string) => s.trim()).filter(Boolean);
-        }
-      }
-      projectTechs.push(...tech);
-    }
-    const dedup = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
-
-    const toMonthYear = (date?: string | null, current?: boolean) => {
-      if (current) return "Present";
-      if (!date) return "";
-      const d = new Date(date);
-      if (Number.isNaN(d.getTime())) return "";
-      return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    };
-
-    const exp = (experiences || []).map((e: any) => ({
-      company: e.company,
-      role: e.position,
-      start: toMonthYear(e.startDate),
-      end: toMonthYear(e.endDate, e.current),
-      bullets: (e.bullets || []).map((b: any) => b.content).filter(Boolean)
-    }));
-
-    const projs = (projects || []).map((p: any) => ({
-      title: p.title,
-      start: toMonthYear(p.startDate),
-      end: toMonthYear(p.endDate),
-      bullets: (p as any).bullets ? (p as any).bullets.map((b: any) => b.content) : [],
-      tech: dedup(projectTechs)
-    }));
-
-    const education = (profile?.educations || []).map((edu: any) => ({
-      degree: edu.degree,
-      field: edu.field,
-      institution: edu.institution,
-      start: toMonthYear(edu.startDate),
-      end: toMonthYear(edu.endDate, edu.current)
-    }));
-
-    const summary = profile?.summary
-      ? profile.summary
-      : `Target Role: ${application?.jobTitle || "N/A"}. Generated from available profile, experiences, and projects.`;
-
-    return {
-      name: user?.name || "Candidate",
-      contact: {
-        location: profile?.location || "",
-        phone: profile?.phone || "",
-        email: profile?.email || user?.email || "",
-        linkedin: profile?.linkedin || "",
-        github: profile?.github || "",
-        portfolio: profile?.portfolio || ""
-      },
-      summary,
-      skills: dedup([...skills, ...projectTechs]),
-      projects: projs,
-      experience: exp,
-      education,
-      certifications: [],
-      meta: {
-        generator: "fallback",
-        reason: "openai_quota_or_rate_limit",
-        timestamp: new Date().toISOString()
-      }
-    };
   }
 
   async generatePDF(resumeContent: any): Promise<Buffer> {

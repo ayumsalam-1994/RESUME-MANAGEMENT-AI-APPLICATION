@@ -209,6 +209,22 @@ export class ProfileService {
       select: { id: true, email: true, name: true, role: true },
     });
   }
+
+  async getCustomPrompt(userId: number) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { customPrompt: true },
+    });
+    return user?.customPrompt || null;
+  }
+
+  async saveCustomPrompt(userId: number, prompt: string) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { customPrompt: prompt || null },
+      select: { customPrompt: true },
+    });
+  }
 }
 
 export const profileService = new ProfileService();

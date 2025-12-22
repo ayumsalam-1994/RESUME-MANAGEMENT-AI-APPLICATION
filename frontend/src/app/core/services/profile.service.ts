@@ -206,6 +206,19 @@ export class ProfileService {
     );
   }
 
+  async getCustomPrompt(): Promise<string | null> {
+    const result = await firstValueFrom(
+      this.http.get<{ customPrompt: string | null }>(`${this.apiUrl}/prompt/custom`)
+    );
+    return result.customPrompt;
+  }
+
+  async saveCustomPrompt(customPrompt: string): Promise<void> {
+    await firstValueFrom(
+      this.http.put(`${this.apiUrl}/prompt/custom`, { customPrompt })
+    );
+  }
+
   clearError(): void {
     this.errorSignal.set(null);
   }

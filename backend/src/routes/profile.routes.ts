@@ -12,6 +12,8 @@ import {
   removeSkill,
   searchSkills,
   getSkillCategories,
+  getCustomPrompt,
+  saveCustomPrompt,
 } from '../controllers/profile.controller';
 
 const router = Router();
@@ -22,6 +24,10 @@ router.use(authenticate);
 // Profile routes
 router.get('/', getProfile);
 router.put('/', updateProfile);
+
+// Custom Prompt routes
+router.get('/prompt/custom', getCustomPrompt);
+router.put('/prompt/custom', saveCustomPrompt);
 
 // Education routes
 router.get('/education', getUserEducation);

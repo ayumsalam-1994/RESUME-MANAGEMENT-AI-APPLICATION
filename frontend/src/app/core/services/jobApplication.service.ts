@@ -137,8 +137,10 @@ export class JobApplicationService {
     );
   }
 
-  async generateResume(applicationId: number, jobDescriptionOverride?: string): Promise<Resume> {
-    const body = jobDescriptionOverride ? { jobDescription: jobDescriptionOverride } : {};
+  async generateResume(applicationId: number, jobDescriptionOverride?: string, customPrompt?: string): Promise<Resume> {
+    const body: any = {};
+    if (jobDescriptionOverride) body.jobDescription = jobDescriptionOverride;
+    if (customPrompt) body.customPrompt = customPrompt;
     return await firstValueFrom(
       this.http.post<Resume>(`${API_URL}/${applicationId}/resumes/generate`, body)
     );

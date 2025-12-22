@@ -12,13 +12,14 @@ datasource db {
 
 // User and Authentication
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      String   @default("user") // user, admin
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password      String
+  name          String
+  role          String   @default("user") // user, admin
+  customPrompt  String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   profile         Profile?
   skills          UserSkill[]

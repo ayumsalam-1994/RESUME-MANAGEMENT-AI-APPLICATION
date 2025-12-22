@@ -242,3 +242,27 @@ export async function getSkillCategories(req: Request, res: Response) {
     res.status(500).json({ error: error.message });
   }
 }
+export async function getCustomPrompt(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const customPrompt = await profileService.getCustomPrompt(userId);
+    res.json({ customPrompt });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function saveCustomPrompt(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { customPrompt } = req.body;
+    const result = await profileService.saveCustomPrompt(userId, customPrompt);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}

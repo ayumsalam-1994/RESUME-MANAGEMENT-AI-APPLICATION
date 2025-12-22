@@ -40,10 +40,14 @@ export async function generateResume(req: Request, res: Response) {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     if (Number.isNaN(applicationId)) return res.status(400).json({ error: "Invalid application id" });
 
-    const bodySchema = z.object({ jobDescription: z.string().min(10).optional(), fallback: z.boolean().optional() });
-    const { jobDescription, fallback } = bodySchema.parse(req.body ?? {});
+    const bodySchema = z.object({ 
+      jobDescription: z.string().min(10).optional(), 
+      customPrompt: z.string().optional(),
+      fallback: z.boolean().optional() 
+    });
+    const { jobDescription, customPrompt } = bodySchema.parse(req.body ?? {});
 
-    const resume = await resumeService.generateForApplication(userId, applicationId, jobDescription);
+    const resume = await resumeService.generateForApplication(userId, applicationId, jobDescription, customPrompt);
     res.status(201).json(resume);
   } catch (error: any) {
     if (error instanceof z.ZodError) {

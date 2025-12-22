@@ -145,11 +145,23 @@ import { ProjectService } from '../../core/services/project.service';
               <div class="actions">
                 <button class="secondary" (click)="startEdit(app)">Edit</button>
                 <button class="danger" (click)="deleteApplicationItem(app.id)">Delete</button>
-                <button class="primary" (click)="generateResume(app.id)">Generate AI Resume</button>
+                <button class="primary" (click)="generateResume(app.id)" [disabled]="generatingResume[app.id]">
+                  @if (generatingResume[app.id]) {
+                    Generating...
+                  } @else {
+                    Generate AI Resume
+                  }
+                </button>
                 <button class="ghost" (click)="toggleResumes(app.id)">
                   @if (resumePanels[app.id]) { Hide Resumes } @else { Show Resumes }
                 </button>
               </div>
+
+              @if (generatingResume[app.id]) {
+                <div class="loading-message">
+                  <span class="spinner">⏳</span> AI is generating your resume... This may take 10-30 seconds.
+                </div>
+              }
 
               @if (resumePanels[app.id]) {
                 <div class="resume-panel">
@@ -396,6 +408,34 @@ import { ProjectService } from '../../core/services/project.service';
     .loading {
       text-align: center;
       color: #666;
+    }
+
+    .loading-message {
+      margin-top: 12px;
+      padding: 12px;
+      background: #e3f2fd;
+      border: 1px solid #2196f3;
+      border-radius: 4px;
+      color: #1976d2;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .spinner {
+      font-size: 18px;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .application-list {
@@ -726,6 +766,7 @@ export class JobApplicationComponent implements OnInit {
   resumesByApp: Record<number, any[]> = {};
   resumePanels: Record<number, boolean> = {};
   rawPanels: Record<number, boolean> = {};
+  generatingResume: Record<number, boolean> = {};
   importingTo: number | null = null;
   importContent = '';
   showPromptEditor = false;
@@ -741,10 +782,23 @@ export class JobApplicationComponent implements OnInit {
     private fb: FormBuilder
   ) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     this.initializeForm();
+    await this.loadCustomPrompt();
     this.loadApplications();
     this.loadCompanies();
+  }
+
+  private async loadCustomPrompt(): Promise<void> {
+    try {
+      const savedPrompt = await this.profileService.getCustomPrompt();
+      if (savedPrompt) {
+        this.customPrompt = savedPrompt;
+        this.promptDraft = savedPrompt;
+      }
+    } catch (error) {
+      console.error('Failed to load custom prompt:', error);
+    }
   }
 
   private initializeForm(): void {
@@ -900,14 +954,24 @@ export class JobApplicationComponent implements OnInit {
   }
 
   async generateResume(applicationId: number): Promise<void> {
+    if (this.generatingResume[applicationId]) {
+      return; // Already generating
+    }
+
     try {
-      await this.applicationService.generateResume(applicationId);
+      this.generatingResume[applicationId] = true;
+      // Pass custom prompt if available
+      const prompt = this.customPrompt.trim() || undefined;
+      await this.applicationService.generateResume(applicationId, undefined, prompt);
       await this.refreshResumes(applicationId);
-      alert('Resume generated successfully.');
+      alert('Resume generated successfully!');
       this.resumePanels[applicationId] = true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to generate resume:', error);
-      alert('Failed to generate resume.');
+      const errorMsg = error?.message || 'Failed to generate resume';
+      alert(`Resume generation not successful.\n\nPlease use the "Copy Prompt" button to generate your resume manually.\n\nError: ${errorMsg}`);
+    } finally {
+      this.generatingResume[applicationId] = false;
     }
   }
 
@@ -949,17 +1013,29 @@ export class JobApplicationComponent implements OnInit {
     }
   }
 
-  saveCustomPrompt(): void {
-    this.customPrompt = this.promptDraft.trim();
-    this.showPromptEditor = false;
-    alert('Custom prompt saved. It will be used for Copy Prompt.');
+  async saveCustomPrompt(): Promise<void> {
+    try {
+      this.customPrompt = this.promptDraft.trim();
+      await this.profileService.saveCustomPrompt(this.customPrompt);
+      this.showPromptEditor = false;
+      alert('Custom prompt saved and synced to your account.');
+    } catch (error) {
+      console.error('Failed to save custom prompt:', error);
+      alert('Failed to save custom prompt to database.');
+    }
   }
 
-  resetCustomPrompt(): void {
-    this.customPrompt = '';
-    this.promptDraft = '';
-    this.showPromptEditor = false;
-    alert('Reverted to default prompt.');
+  async resetCustomPrompt(): Promise<void> {
+    try {
+      this.customPrompt = '';
+      await this.profileService.saveCustomPrompt('');
+      this.promptDraft = '';
+      this.showPromptEditor = false;
+      alert('Reverted to default prompt.');
+    } catch (error) {
+      console.error('Failed to reset custom prompt:', error);
+      alert('Failed to reset custom prompt.');
+    }
   }
 
   private getDefaultInstructions(): string {
