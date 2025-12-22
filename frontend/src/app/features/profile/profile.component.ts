@@ -32,6 +32,12 @@ import { AuthService } from '../../core/services/auth.service';
             </div>
 
             <div class="form-group">
+              <label>Email (for resume)</label>
+              <input formControlName="email" type="email" />
+              <small class="help-text">This email will be displayed on your resume. Leave empty to use your account email.</small>
+            </div>
+
+            <div class="form-group">
               <label>Location</label>
               <input formControlName="location" type="text" />
             </div>
@@ -274,6 +280,13 @@ import { AuthService } from '../../core/services/auth.service';
       font-weight: 500;
     }
 
+    .help-text {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      color: #666;
+    }
+
     input,
     textarea,
     select {
@@ -468,6 +481,7 @@ export class ProfileComponent implements OnInit {
   private initializeForms(): void {
     this.profileForm = this.fb.group({
       name: ['', Validators.required],
+      email: [''],
       location: [''],
       phone: [''],
       linkedin: [''],
@@ -495,6 +509,7 @@ export class ProfileComponent implements OnInit {
     if (this.profileForm) {
       this.profileForm.patchValue({
         name: profile.user?.name || '',
+        email: profile.email || '',
         location: profile.location || '',
         phone: profile.phone || '',
         linkedin: profile.linkedin || '',

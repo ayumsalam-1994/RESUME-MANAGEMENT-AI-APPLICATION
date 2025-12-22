@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 // Zod schemas for validation
 const ProfileUpdateSchema = z.object({
+  email: z.string().email().optional(),
   phone: z.string().optional(),
   linkedin: z.string().url().optional(),
   github: z.string().url().optional(),

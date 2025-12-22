@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 export interface Profile {
   id: number;
   userId: number;
+  email?: string;
   phone?: string;
   linkedin?: string;
   github?: string;
@@ -53,6 +54,7 @@ export class ProfileService {
   private apiUrl = 'http://localhost:3000/api/profile';
 
   private profileUpdateFields = [
+    'email',
     'phone',
     'linkedin',
     'github',

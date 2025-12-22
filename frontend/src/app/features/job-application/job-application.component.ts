@@ -156,11 +156,23 @@ import { ProjectService } from '../../core/services/project.service';
                   <div class="resume-actions">
                     <button class="small" (click)="refreshResumes(app.id)">Refresh</button>
                     <button class="small primary" (click)="copyPrompt(app)">Copy Prompt</button>
+                    <button class="small" (click)="togglePromptEditor()">Customize Prompt</button>
                     <button class="small secondary" (click)="startImport(app.id)">Import Resume</button>
                     <button class="small ghost" (click)="toggleRaw(app.id)">
                       @if (rawPanels[app.id]) { Hide Raw } @else { Show Raw }
                     </button>
                   </div>
+                  @if (showPromptEditor) {
+                    <div class="prompt-editor">
+                      <h4>Custom Prompt Instructions</h4>
+                      <p class="muted">Override the default instructions that follow the job and profile data. Leave empty to use defaults.</p>
+                      <textarea [(ngModel)]="promptDraft" rows="6" placeholder="Write your custom instructions or schema overrides..."></textarea>
+                      <div class="prompt-actions">
+                        <button class="primary small" (click)="saveCustomPrompt()">Save</button>
+                        <button class="ghost small" (click)="resetCustomPrompt()">Reset to default</button>
+                      </div>
+                    </div>
+                  }
                   @if (importingTo === app.id) {
                     <div class="import-panel">
                       <h4>Paste Resume JSON</h4>
@@ -677,6 +689,31 @@ import { ProjectService } from '../../core/services/project.service';
     .proj-item { margin-bottom: 8px; }
 
     .muted { color: #777; }
+
+    .prompt-editor {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fdfdfd;
+    }
+
+    .prompt-editor textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+    }
+
+    .prompt-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
   `,
 })
 export class JobApplicationComponent implements OnInit {
@@ -691,6 +728,9 @@ export class JobApplicationComponent implements OnInit {
   rawPanels: Record<number, boolean> = {};
   importingTo: number | null = null;
   importContent = '';
+  showPromptEditor = false;
+  promptDraft = '';
+  customPrompt = '';
 
   constructor(
     public applicationService: JobApplicationService,
@@ -902,6 +942,83 @@ export class JobApplicationComponent implements OnInit {
     this.rawPanels[applicationId] = !this.rawPanels[applicationId];
   }
 
+  togglePromptEditor(): void {
+    this.showPromptEditor = !this.showPromptEditor;
+    if (this.showPromptEditor) {
+      this.promptDraft = this.customPrompt || this.getDefaultInstructions();
+    }
+  }
+
+  saveCustomPrompt(): void {
+    this.customPrompt = this.promptDraft.trim();
+    this.showPromptEditor = false;
+    alert('Custom prompt saved. It will be used for Copy Prompt.');
+  }
+
+  resetCustomPrompt(): void {
+    this.customPrompt = '';
+    this.promptDraft = '';
+    this.showPromptEditor = false;
+    alert('Reverted to default prompt.');
+  }
+
+  private getDefaultInstructions(): string {
+    return `--- OUTPUT JSON SCHEMA ---
+{
+  "name": "Full Name",
+  "contact": {
+    "location": "City, Country",
+    "phone": "",
+    "email": "",
+    "linkedin": "",
+    "github": "",
+    "portfolio": ""
+  },
+  "summary": "2-3 sentence professional summary tailored to the job",
+  "skills": ["skill1", "skill2", "skill3"],
+  "projects": [
+    {
+      "title": "Project Name",
+      "start": "MMM YYYY",
+      "end": "MMM YYYY or Present",
+      "bullets": ["Impact bullet 1", "Impact bullet 2"],
+      "tech": ["tech1", "tech2"]
+    }
+  ],
+  "experience": [
+    {
+      "company": "Company Name",
+      "role": "Position Title",
+      "start": "MMM YYYY",
+      "end": "MMM YYYY or Present",
+      "bullets": ["Achievement with metrics", "Impact statement"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Degree",
+      "field": "Field of Study",
+      "institution": "University Name",
+      "start": "MMM YYYY",
+      "end": "MMM YYYY or Present"
+    }
+  ],
+  "certifications": [
+    { "title": "Certification Title" }
+  ]
+}
+
+Guidelines:
+- Use the provided profile, experience, and projects to populate every section.
+- Keep bullets concise, action-oriented, and relevant to the job description.
+- Avoid first-person pronouns; ATS-safe wording only.
+- Use simple vocabulary suitable for Malaysian English.
+- Highlight and refrsame my skills to be relevant for the position.
+- Filter and reframe skills in bullet points to match the job description.
+- Choose only the latest Education entry.
+- No em-dash characters.`;
+  }
+
   private safeParse(content: any): any {
     if (!content) return null;
     if (typeof content === 'object') return content;
@@ -923,6 +1040,8 @@ export class JobApplicationComponent implements OnInit {
       // Format profile data
       let profileSection = `\n--- USER PROFILE DATA ---\n`;
       if (profile) {
+        profileSection += `Name: ${profile.user?.name || 'Not specified'}\n`;
+        profileSection += `Email: ${profile.email || profile.user?.email || 'Not specified'}\n`;
         profileSection += `Phone: ${profile.phone || 'Not specified'}\n`;
         profileSection += `Location: ${profile.location || 'Not specified'}\n`;
         profileSection += `LinkedIn: ${profile.linkedin || 'Not specified'}\n`;
@@ -993,7 +1112,11 @@ export class JobApplicationComponent implements OnInit {
         projectSection += `No project data available.\n`;
       }
 
-      const prompt = `You are an expert ATS resume writer. Generate a concise, ATS-safe resume in JSON format based on the following data.
+      const defaultInstructions = this.getDefaultInstructions();
+
+      const instructions = this.customPrompt.trim() || defaultInstructions;
+
+      const prompt = `You are an expert ATS resume writer. Generate a concise, ATS-safe resume in JSON format using the exact schema below. Use month-year for dates (e.g., Jan 2024). Avoid fancy formatting.
 
 --- JOB TARGET ---
 Job Title: ${app.jobTitle}
@@ -1001,41 +1124,7 @@ Job Description:
 ${app.jobDescription}
 ${profileSection}${experienceSection}${projectSection}
 
---- INSTRUCTIONS ---
-Using the user's profile, experience, and projects data above, create a tailored resume for the job target.
-
-Output a JSON object with this exact structure:
-{
-  "summary": "Professional summary tailored to the job (2-3 sentences, emphasize relevant skills and experience)",
-  "skills": ["skill1", "skill2", "skill3", ...],
-  "experience": [
-    {
-      "company": "Company Name",
-      "role": "Position Title",
-      "start": "YYYY-MM",
-      "end": "YYYY-MM or Present",
-      "bullets": ["Achievement 1 with metrics", "Achievement 2 with impact", ...]
-    }
-  ],
-  "projects": [
-    {
-      "title": "Project Name",
-      "description": "Brief description emphasizing relevance to job",
-      "tech": ["tech1", "tech2"]
-    }
-  ]
-}
-
-Guidelines:
-- Focus on ATS-safe formatting, avoid special characters
-- Avoid first person pronouns (I, my, we)
-- Emphasize quantifiable impact and results
-- Prioritize skills and experience most relevant to the job description
-- Keep bullets concise and action-oriented
-- Highlight and reframe my skills to be relevant for the position
-- Do not use em-dash in your writing
-- Use simple vocabulary that a Malaysian English speaker would normally use
-- Use past tense for previous roles, present tense for current roles`;
+${instructions}`;
 
       await navigator.clipboard.writeText(prompt);
       alert('Detailed prompt with your profile data copied to clipboard! Paste it into ChatGPT.');

@@ -68,8 +68,7 @@ export class CompanyService {
     const companies = await prisma.company.findMany({
       where: {
         name: {
-          contains: query,
-          mode: "insensitive"
+          contains: query
         }
       },
       orderBy: { name: "asc" },

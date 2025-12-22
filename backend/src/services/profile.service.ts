@@ -63,9 +63,9 @@ export class ProfileService {
 
     const education = await prisma.education.create({
       data: {
-        ...data,
         profileId: profile.id,
-      },
+        ...data,
+      } as any,
     });
 
     return education;
@@ -174,13 +174,16 @@ export class ProfileService {
 
   // Search skills by category or name
   async searchSkills(query: string, category?: string) {
+    const whereConditions: any = {};
+    if (query) {
+      whereConditions.name = { contains: query };
+    }
+    if (category) {
+      whereConditions.category = category;
+    }
+
     const skills = await prisma.skill.findMany({
-      where: {
-        AND: [
-          query ? { name: { contains: query, mode: 'insensitive' } } : {},
-          category ? { category } : {},
-        ],
-      },
+      where: whereConditions,
       orderBy: { name: 'asc' },
       take: 20,
     });
@@ -196,7 +199,7 @@ export class ProfileService {
       orderBy: { category: 'asc' },
     });
 
-    return categories.map((c: { category: string }) => c.category);
+    return categories.map((c) => c.category).filter((cat): cat is string => cat !== null);
   }
 
   async updateUserName(userId: number, name: string) {
