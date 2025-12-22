@@ -1,15 +1,22 @@
 <header class="topbar">
 	<div class="brand" routerLink="/dashboard">Resume AI</div>
+	
 	@if (authService.isAuthenticated()) {
-		<nav class="nav">
-			<a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
-			<a routerLink="/profile" routerLinkActive="active">Profile</a>
-			<a routerLink="/experience" routerLinkActive="active">Experience</a>
-			<a routerLink="/projects" routerLinkActive="active">Projects</a>
-			<a routerLink="/certifications" routerLinkActive="active">Certifications</a>
-			<a routerLink="/job-applications" routerLinkActive="active">Jobs</a>
+		<button class="hamburger" (click)="toggleMobileMenu()" [class.open]="mobileMenuOpen()">
+			<span></span>
+			<span></span>
+			<span></span>
+		</button>
+		
+		<nav class="nav" [class.mobile-open]="mobileMenuOpen()">
+			<a routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()">Dashboard</a>
+			<a routerLink="/profile" routerLinkActive="active" (click)="closeMobileMenu()">Profile</a>
+			<a routerLink="/experience" routerLinkActive="active" (click)="closeMobileMenu()">Experience</a>
+			<a routerLink="/projects" routerLinkActive="active" (click)="closeMobileMenu()">Projects</a>
+			<a routerLink="/certifications" routerLinkActive="active" (click)="closeMobileMenu()">Certifications</a>
+			<a routerLink="/job-applications" routerLinkActive="active" (click)="closeMobileMenu()">Jobs</a>
+			<button class="logout" (click)="logout()">Logout</button>
 		</nav>
-		<button class="logout" (click)="logout()">Logout</button>
 	} @else {
 		<nav class="nav">
 			<a routerLink="/login" routerLinkActive="active">Login</a>

@@ -811,6 +811,129 @@ import { ProjectService } from '../../core/services/project.service';
       gap: 8px;
       margin-top: 8px;
     }
+
+    /* Mobile responsive styles */
+    @media (max-width: 768px) {
+      .container {
+        padding: 12px;
+      }
+
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .filters select {
+        width: 100%;
+      }
+
+      .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .status-badge {
+        align-self: flex-start;
+      }
+
+      .actions {
+        flex-direction: column;
+        
+        button {
+          width: 100%;
+        }
+      }
+
+      .resume-actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        
+        button, select {
+          font-size: 12px;
+          padding: 5px 8px;
+        }
+      }
+
+      .small-select {
+        flex: 1;
+        min-width: 120px;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .resume-meta {
+        flex-wrap: wrap;
+        font-size: 12px;
+      }
+
+      .exp-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+
+      .chips {
+        font-size: 11px;
+      }
+
+      .resume-content {
+        font-size: 11px;
+        overflow-x: auto;
+      }
+
+      .company-form {
+        flex-direction: column;
+      }
+
+      button {
+        min-height: 44px; /* Touch-friendly */
+      }
+
+      input, textarea, select {
+        font-size: 16px; /* Prevent zoom on iOS */
+      }
+
+      .breakdown {
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .analysis {
+        font-size: 12px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      h2 {
+        font-size: 20px;
+      }
+
+      h3 {
+        font-size: 16px;
+      }
+
+      .subtext {
+        font-size: 13px;
+      }
+
+      .resume-actions {
+        gap: 4px;
+        
+        button, select {
+          font-size: 11px;
+          padding: 4px 6px;
+        }
+      }
+
+      .tiny {
+        padding: 3px 6px;
+        font-size: 10px;
+      }
+    }
   `,
 })
 export class JobApplicationComponent implements OnInit {

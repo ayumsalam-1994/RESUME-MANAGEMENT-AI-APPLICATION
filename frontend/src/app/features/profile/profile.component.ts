@@ -350,9 +350,13 @@ import { AuthService } from '../../core/services/auth.service';
 
     .education-header {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: center;
       margin-bottom: 10px;
+
+      strong {
+        flex: 1;
+      }
 
       button {
         margin-left: 10px;
@@ -444,6 +448,73 @@ import { AuthService } from '../../core/services/auth.service';
       color: #dc3545;
       display: block;
       margin-top: 4px;
+    }
+
+    /* Add a bit more gap between adjacent form buttons */
+    form button + button {
+      margin-left: 10px;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 12px;
+      }
+
+      .section {
+        padding: 15px;
+      }
+
+      h2 {
+        font-size: 20px;
+      }
+
+      h3 {
+        font-size: 16px;
+      }
+
+      .education-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+
+        button {
+          width: 100%;
+        }
+      }
+
+      .skills-list {
+        gap: 8px;
+      }
+
+      .skill-badge {
+        font-size: 13px;
+        padding: 5px 10px;
+      }
+
+      button {
+        width: 100%;
+        min-height: 44px;
+      }
+
+      input, textarea, select {
+        font-size: 16px; /* Prevent iOS zoom */
+      }
+
+      /* On mobile, buttons stack; use vertical gap instead of left margin */
+      form button + button {
+        margin-left: 0;
+        margin-top: 10px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .section {
+        padding: 12px;
+      }
+
+      h2 {
+        font-size: 18px;
+      }
     }
   `,
 })

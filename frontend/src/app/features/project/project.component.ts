@@ -595,6 +595,87 @@ import {
         font-size: 13px;
       }
     }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 12px;
+      }
+
+      h2 {
+        font-size: 20px;
+      }
+
+      .project-card {
+        padding: 15px;
+      }
+
+      .project-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .actions {
+        flex-direction: column;
+        width: 100%;
+
+        button {
+          width: 100%;
+        }
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .images-list {
+        gap: 8px;
+      }
+
+      .image-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+
+        button {
+          width: 100%;
+        }
+      }
+
+      button {
+        min-height: 44px;
+      }
+
+      input, textarea, select {
+        font-size: 16px; /* Prevent iOS zoom */
+      }
+
+      /* Bullet controls under text, left-aligned on mobile */
+      .bullets li {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .bullets span {
+        flex: initial;
+        width: 100%;
+      }
+
+      .bullet-controls {
+        margin-top: 8px;
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .project-card {
+        padding: 12px;
+      }
+
+      h2 {
+        font-size: 18px;
+      }
+    }
   `,
 })
 export class ProjectComponent implements OnInit {

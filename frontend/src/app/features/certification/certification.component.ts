@@ -245,6 +245,64 @@ import {
       color: #666;
       font-size: 12px;
     }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 12px;
+      }
+
+      h2 {
+        font-size: 20px;
+      }
+
+      .card {
+        padding: 15px;
+      }
+
+      .card-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+
+      /* Card action buttons (Edit/Delete): right-aligned, fixed/short width, stacked */
+      .card-header .actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: flex-end;
+        gap: 8px;
+        width: auto; /* override any generic width */
+      }
+
+      .card-header .actions button {
+        width: 120px;
+        min-height: 44px;
+      }
+
+      /* Keep form actions full-width and stacked for easier tapping */
+      form .actions {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 8px;
+      }
+
+      form .actions button {
+        width: 100%;
+        min-height: 44px;
+      }
+
+      input, textarea {
+        font-size: 16px; /* Prevent iOS zoom */
+      }
+    }
+
+    @media (max-width: 480px) {
+      h2 {
+        font-size: 18px;
+      }
+    }
   `,
 })
 export class CertificationComponent implements OnInit {
@@ -295,12 +353,19 @@ export class CertificationComponent implements OnInit {
       description: cert.description || '',
       fileUrl: cert.fileUrl || '',
     });
+
+    // Scroll to top so the edit form is immediately visible
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      // no-op if window is unavailable
+    }
   }
 
   async submitCertification(): Promise<void> {
     if (!this.certForm?.valid) return;
 
-    const formValue = this.certForm.value;
+    const formValue = this.certForm.value as any;
     const payload: any = {
       title: formValue.title,
     };
@@ -351,7 +416,7 @@ export class CertificationComponent implements OnInit {
 
   onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    this.selectedFile = file ?? null;
+    const file = input.files?.[0] ?? null;
+    this.selectedFile = file;
   }
 }

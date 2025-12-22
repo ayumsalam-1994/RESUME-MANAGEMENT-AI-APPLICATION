@@ -11,11 +11,21 @@ import { AuthService } from './core/services/auth.service';
 })
 export class App {
   protected readonly title = signal('resume-ai-frontend');
+  mobileMenuOpen = signal(false);
 
   constructor(public authService: AuthService, private router: Router) {}
+
+  toggleMobileMenu(): void {
+    this.mobileMenuOpen.set(!this.mobileMenuOpen());
+  }
+
+  closeMobileMenu(): void {
+    this.mobileMenuOpen.set(false);
+  }
 
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
+    this.closeMobileMenu();
   }
 }

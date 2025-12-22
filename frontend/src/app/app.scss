@@ -16,11 +16,45 @@
 	cursor: pointer;
 	color: inherit;
 	text-decoration: none;
+	font-size: 18px;
+}
+
+.hamburger {
+	display: none;
+	flex-direction: column;
+	gap: 4px;
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 8px;
+	z-index: 11;
+
+	span {
+		display: block;
+		width: 24px;
+		height: 3px;
+		background: #e2e8f0;
+		border-radius: 2px;
+		transition: all 0.3s ease;
+	}
+
+	&.open {
+		span:nth-child(1) {
+			transform: rotate(45deg) translate(6px, 6px);
+		}
+		span:nth-child(2) {
+			opacity: 0;
+		}
+		span:nth-child(3) {
+			transform: rotate(-45deg) translate(6px, -6px);
+		}
+	}
 }
 
 .nav {
 	display: inline-flex;
 	gap: 14px;
+	align-items: center;
 
 	a {
 		color: #cbd5e1;
@@ -29,6 +63,7 @@
 		padding: 6px 10px;
 		border-radius: 6px;
 		transition: background 0.2s ease;
+		white-space: nowrap;
 
 		&.active,
 		&:hover {
@@ -45,8 +80,60 @@
 	border-radius: 6px;
 	padding: 8px 12px;
 	cursor: pointer;
+	font-weight: 500;
+	white-space: nowrap;
 }
 
 .page {
 	padding: 12px;
+	max-width: 100%;
+	overflow-x: hidden;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+	.hamburger {
+		display: flex;
+	}
+
+	.nav {
+		position: fixed;
+		top: 0;
+		right: -100%;
+		width: 70%;
+		max-width: 300px;
+		height: 100vh;
+		background: #1e293b;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 0;
+		padding: 60px 0 20px 0;
+		box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+		transition: right 0.3s ease;
+		overflow-y: auto;
+
+		&.mobile-open {
+			right: 0;
+		}
+
+		a, .logout {
+			padding: 14px 20px;
+			border-radius: 0;
+			width: 100%;
+			text-align: left;
+			font-size: 16px;
+		}
+
+		.logout {
+			margin-top: auto;
+		}
+	}
+
+	.page {
+		padding: 16px 12px;
+	}
+
+	.brand {
+		font-size: 16px;
+	}
 }

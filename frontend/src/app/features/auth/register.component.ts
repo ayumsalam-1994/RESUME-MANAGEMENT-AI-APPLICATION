@@ -187,6 +187,24 @@ import { AuthService } from '../../core/services/auth.service';
     .login-link a:hover {
       text-decoration: underline;
     }
+
+    @media (max-width: 768px) {
+      .register-container {
+        padding: 0.5rem;
+      }
+
+      .register-card {
+        padding: 1.5rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+
+      input, button {
+        font-size: 16px; /* Prevent iOS zoom */
+      }
+    }
   `]
 })
 export class RegisterComponent {

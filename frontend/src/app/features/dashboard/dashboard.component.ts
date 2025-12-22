@@ -166,13 +166,36 @@ import { AuthService } from '../../core/services/auth.service';
     }
 
     @media (max-width: 768px) {
+      .dashboard {
+        padding: 12px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
       .feature-cards {
         grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .card {
+        padding: 1.25rem;
       }
 
       .navbar-content {
         flex-direction: column;
         gap: 1rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 20px;
+      }
+
+      .card {
+        padding: 1rem;
       }
     }
   `]
