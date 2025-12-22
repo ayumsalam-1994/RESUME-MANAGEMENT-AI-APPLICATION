@@ -7,16 +7,18 @@ export class ResumeService {
   private genAI?: GoogleGenerativeAI;
   private model?: any;
   private lastGenerationTime: Map<number, number> = new Map(); // userId -> timestamp
+  private lastAnalysisTime: Map<number, number> = new Map(); // userId -> timestamp for analysis
   private readonly RATE_LIMIT_MS = 60000; // 1 minute in milliseconds
 
-  private initializeGemini() {
-    if (!this.genAI) {
-      if (!config.geminiKey) {
-        throw new Error("Gemini API key is missing. Set GEMINI_API_KEY in your environment.");
-      }
-      this.genAI = new GoogleGenerativeAI(config.geminiKey);
-      this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  private initializeGemini(modelName?: string) {
+    if (!config.geminiKey) {
+      throw new Error("Gemini API key is missing. Set GEMINI_API_KEY in your environment.");
     }
+    if (!this.genAI) {
+      this.genAI = new GoogleGenerativeAI(config.geminiKey);
+    }
+    const selected = modelName || "gemini-2.5-flash";
+    this.model = this.genAI.getGenerativeModel({ model: selected });
   }
 
   async getResumesForApplication(userId: number, applicationId: number) {
@@ -38,8 +40,11 @@ export class ResumeService {
     return resume;
   }
 
-  async generateForApplication(userId: number, applicationId: number, jobDescriptionOverride?: string, customPrompt?: string) {
-    this.initializeGemini();
+  async generateForApplication(userId: number, applicationId: number): Promise<any>;
+  async generateForApplication(userId: number, applicationId: number, jobDescriptionOverride?: string, customPrompt?: string): Promise<any>;
+  async generateForApplication(userId: number, applicationId: number, jobDescriptionOverride?: string, customPrompt?: string, modelName?: string): Promise<any>;
+  async generateForApplication(userId: number, applicationId: number, jobDescriptionOverride?: string, customPrompt?: string, modelName?: string) {
+    this.initializeGemini(modelName);
 
     // Rate limiting check
     const now = Date.now();
@@ -372,13 +377,14 @@ export class ResumeService {
       doc.x = rightX;
       doc.list(right, { bulletRadius: 2, textIndent: 10, width: columnWidth, align: "left" });
       doc.x = margin;
+      
       doc.moveDown(0.3);
-      drawLine();
-      doc.moveDown(0.4);
     }
 
     // Projects
     if (resumeContent.projects && resumeContent.projects.length > 0) {
+      drawLine();
+      doc.moveDown(0.4);
       sectionHeader("Projects");
       doc.fontSize(12).font("Times-Roman").fillColor("#000000");
       resumeContent.projects.forEach((proj: any) => {
@@ -439,17 +445,7 @@ export class ResumeService {
       doc.moveDown(0.4);
     }
 
-    // Footer with page numbers
-    const pages = doc.bufferedPageRange().count;
-    for (let i = 0; i < pages; i++) {
-      doc.switchToPage(i);
-      doc.fontSize(8).fillColor("#999999").text(
-        `Page ${i + 1} of ${pages}`,
-        margin,
-        doc.page.height - 30,
-        { width: contentWidth, align: "center" }
-      );
-    }
+    // Footer removed: no page numbers on export
 
     doc.end();
 
@@ -457,6 +453,89 @@ export class ResumeService {
       doc.on("end", () => resolve(Buffer.concat(buffer)));
       doc.on("error", reject);
     });
+  }
+
+  async analyzeResume(userId: number, applicationId: number, resumeId: number, modelName?: string) {
+    this.initializeGemini(modelName);
+
+    // Rate limiting check
+    const now = Date.now();
+    const lastAnalysis = this.lastAnalysisTime.get(userId);
+    
+    if (lastAnalysis) {
+      const timeSinceLastAnalysis = now - lastAnalysis;
+      const remainingTime = this.RATE_LIMIT_MS - timeSinceLastAnalysis;
+      
+      if (remainingTime > 0) {
+        const secondsRemaining = Math.ceil(remainingTime / 1000);
+        throw new Error(`Rate limit exceeded. Please wait ${secondsRemaining} seconds before analyzing another resume.`);
+      }
+    }
+
+    const [application, resume] = await Promise.all([
+      prisma.jobApplication.findFirst({ where: { id: applicationId, userId } }),
+      prisma.resume.findFirst({ where: { id: resumeId, userId, jobApplicationId: applicationId } })
+    ]);
+    if (!application) throw new Error("Job application not found");
+    if (!resume) throw new Error("Resume not found");
+    if (!application.jobDescription) throw new Error("Job description is missing for this application");
+
+    const system = "You are a hiring expert. Compare the provided resume JSON against the job description. Return JSON only.";
+    const analysisSchema = {
+      matchScore: "number (0-100)",
+      scoreBreakdown: {
+        skills: "number (0-100)",
+        experience: "number (0-100)",
+        projects: "number (0-100)",
+        summary: "number (0-100)"
+      },
+      missingSkills: ["string"],
+      suggestions: "string"
+    };
+
+    const payload = {
+      jobTitle: application.jobTitle,
+      jobDescription: application.jobDescription,
+      resume: typeof resume.content === 'string' ? JSON.parse(resume.content) : resume.content,
+      instructions: {
+        outputFormat: { type: 'json', schema: analysisSchema },
+        style: { concise: true }
+      }
+    };
+
+    const prompt = `${system}\n\n${JSON.stringify(payload)}`;
+
+    try {
+      const response = await this.model!.generateContent(prompt);
+      const text = response.response.text();
+      let content = text;
+      const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+      if (jsonMatch && jsonMatch[1]) {
+        content = jsonMatch[1].trim();
+      }
+      const parsed = JSON.parse(content);
+      const matchScore = Math.max(0, Math.min(100, Number(parsed.matchScore ?? 0)));
+      const scoreBreakdown = parsed.scoreBreakdown ? JSON.stringify(parsed.scoreBreakdown) : null;
+      const suggestions = parsed.suggestions || (parsed.missingSkills ? `Missing skills: ${parsed.missingSkills.join(', ')}` : null);
+
+      // Overwrite previous analysis (effectively deleting the old reply)
+      const updated = await prisma.resume.update({
+        where: { id: resumeId },
+        data: {
+          matchScore,
+          scoreBreakdown,
+          suggestions
+        },
+        select: { id: true, matchScore: true, scoreBreakdown: true, suggestions: true, updatedAt: true }
+      });
+
+      // Update last analysis timestamp after successful completion
+      this.lastAnalysisTime.set(userId, Date.now());
+
+      return updated;
+    } catch (err: any) {
+      throw new Error(`Analysis failed: ${err?.message || 'Unknown error'}`);
+    }
   }
 }
 

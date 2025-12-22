@@ -145,13 +145,6 @@ import { ProjectService } from '../../core/services/project.service';
               <div class="actions">
                 <button class="secondary" (click)="startEdit(app)">Edit</button>
                 <button class="danger" (click)="deleteApplicationItem(app.id)">Delete</button>
-                <button class="primary" (click)="generateResume(app.id)" [disabled]="generatingResume[app.id]">
-                  @if (generatingResume[app.id]) {
-                    Generating...
-                  } @else {
-                    Generate AI Resume
-                  }
-                </button>
                 <button class="ghost" (click)="toggleResumes(app.id)">
                   @if (resumePanels[app.id]) { Hide Resumes } @else { Show Resumes }
                 </button>
@@ -170,6 +163,14 @@ import { ProjectService } from '../../core/services/project.service';
                     <button class="small primary" (click)="copyPrompt(app)">Copy Prompt</button>
                     <button class="small" (click)="togglePromptEditor()">Customize Prompt</button>
                     <button class="small secondary" (click)="startImport(app.id)">Import Resume</button>
+                    <select class="small-select" [(ngModel)]="selectedModel" [disabled]="generatingResume[app.id]">
+                      @for (m of models; track m) {
+                        <option [value]="m">{{ m }}</option>
+                      }
+                    </select>
+                    <button class="small primary" (click)="generateResume(app.id)" [disabled]="generatingResume[app.id]">
+                      @if (generatingResume[app.id]) { Generating... } @else { Generate AI }
+                    </button>
                     <button class="small ghost" (click)="toggleRaw(app.id)">
                       @if (rawPanels[app.id]) { Hide Raw } @else { Show Raw }
                     </button>
@@ -210,6 +211,9 @@ import { ProjectService } from '../../core/services/project.service';
                             <strong>Version {{ resume.version }}</strong>
                             <span>• {{ resume.createdAt | date: 'MMM dd, yyyy HH:mm' }}</span>
                             <button class="success tiny" (click)="exportResumePDF(app.id, resume.id)">Export PDF</button>
+                            <button class="primary tiny" [disabled]="analyzingResume[app.id]" (click)="analyzeResume(app.id, resume.id)">
+                              @if (analyzingResume[app.id]) { Analyzing... } @else { Analyze Fit }
+                            </button>
                             <button class="danger tiny" (click)="deleteResumeVersion(app.id, resume.id)">Delete</button>
                           </div>
                           @if (!rawPanels[app.id]) {
@@ -260,6 +264,36 @@ import { ProjectService } from '../../core/services/project.service';
                             }
                           } @else {
                             <pre class="resume-content">{{ resume.content | json }}</pre>
+                          }
+
+                          @if (resume.analysis?.matchScore !== null || resume.analysis?.suggestions) {
+                            <div class="analysis">
+                              <div class="analysis-header">
+                                <strong>Fit Analysis</strong>
+                                @if (resume.analysis?.matchScore !== null) {
+                                  <span class="score-badge">{{ resume.analysis.matchScore }}%</span>
+                                }
+                              </div>
+                              @if (resume.analysis?.scoreBreakdown) {
+                                <div class="breakdown">
+                                  @if (resume.analysis.scoreBreakdown.skills !== undefined) {
+                                    <span>Skills: {{ resume.analysis.scoreBreakdown.skills }}%</span>
+                                  }
+                                  @if (resume.analysis.scoreBreakdown.experience !== undefined) {
+                                    <span>Experience: {{ resume.analysis.scoreBreakdown.experience }}%</span>
+                                  }
+                                  @if (resume.analysis.scoreBreakdown.projects !== undefined) {
+                                    <span>Projects: {{ resume.analysis.scoreBreakdown.projects }}%</span>
+                                  }
+                                  @if (resume.analysis.scoreBreakdown.summary !== undefined) {
+                                    <span>Summary: {{ resume.analysis.scoreBreakdown.summary }}%</span>
+                                  }
+                                </div>
+                              }
+                              @if (resume.analysis?.suggestions) {
+                                <div class="suggestions">{{ resume.analysis.suggestions }}</div>
+                              }
+                            </div>
                           }
                         </div>
                       }
@@ -650,6 +684,10 @@ import { ProjectService } from '../../core/services/project.service';
       margin-bottom: 8px;
       gap: 6px;
     }
+    .small-select {
+      padding: 6px 10px;
+      font-size: 13px;
+    }
 
     .import-panel {
       background: #f9f9f9;
@@ -685,6 +723,25 @@ import { ProjectService } from '../../core/services/project.service';
       border-radius: 6px;
       padding: 10px;
     }
+
+    .analysis {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid #e1e1e1;
+      border-radius: 6px;
+      background: #fafafa;
+    }
+    .analysis-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .score-badge {
+      background: #e7f3ff;
+      color: #004085;
+      border: 1px solid #99caff;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 12px;
+    }
+    .breakdown { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #444; margin-bottom: 6px; }
+    .suggestions { font-size: 13px; color: #333; white-space: pre-wrap; }
 
     .badge.fallback {
       display: inline-block;
@@ -767,11 +824,20 @@ export class JobApplicationComponent implements OnInit {
   resumePanels: Record<number, boolean> = {};
   rawPanels: Record<number, boolean> = {};
   generatingResume: Record<number, boolean> = {};
+  analyzingResume: Record<number, boolean> = {};
   importingTo: number | null = null;
   importContent = '';
   showPromptEditor = false;
   promptDraft = '';
   customPrompt = '';
+  models = [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash-tts',
+    'gemini-3-flash-preview',
+    'gemma-3-27b-it'
+  ];
+  selectedModel = 'gemini-2.5-flash';
 
   constructor(
     public applicationService: JobApplicationService,
@@ -962,8 +1028,9 @@ export class JobApplicationComponent implements OnInit {
       this.generatingResume[applicationId] = true;
       // Pass custom prompt if available
       const prompt = this.customPrompt.trim() || undefined;
-      await this.applicationService.generateResume(applicationId, undefined, prompt);
+      await this.applicationService.generateResume(applicationId, undefined, prompt, this.selectedModel);
       await this.refreshResumes(applicationId);
+      await this.loadApplications();  // Refresh applications list
       alert('Resume generated successfully!');
       this.resumePanels[applicationId] = true;
     } catch (error: any) {
@@ -982,7 +1049,12 @@ export class JobApplicationComponent implements OnInit {
       console.log('Received resumes:', items);
       const parsed = items.map((r: any) => ({
         ...r,
-        parsed: this.safeParse(r.content)
+        parsed: this.safeParse(r.content),
+        analysis: {
+          matchScore: r.matchScore ?? null,
+          scoreBreakdown: this.safeParse(r.scoreBreakdown),
+          suggestions: r.suggestions ?? null
+        }
       }));
       this.resumesByApp[applicationId] = parsed;
       console.log('Parsed resumes:', parsed);
@@ -993,11 +1065,32 @@ export class JobApplicationComponent implements OnInit {
     }
   }
 
+  async analyzeResume(applicationId: number, resumeId: number): Promise<void> {
+    if (this.analyzingResume[applicationId]) {
+      return; // Already analyzing
+    }
+
+    try {
+      this.analyzingResume[applicationId] = true;
+      const model = this.selectedModel;
+      const result = await this.applicationService.analyzeResume(applicationId, resumeId, model);
+      await this.refreshResumes(applicationId);
+      await this.loadApplications(); // Refresh applications list
+    } catch (error: any) {
+      console.error('Failed to analyze resume:', error);
+      const errorMsg = error?.error?.error || error?.message || 'Failed to analyze resume';
+      alert(`Analysis failed: ${errorMsg}`);
+    } finally {
+      this.analyzingResume[applicationId] = false;
+    }
+  }
+
   async toggleResumes(applicationId: number): Promise<void> {
     const currently = !!this.resumePanels[applicationId];
     this.resumePanels[applicationId] = !currently;
     console.log('Toggle resumes panel for app', applicationId, ':', !currently);
     if (!currently) {
+      // Opening panel - refresh resumes
       await this.refreshResumes(applicationId);
     }
   }
@@ -1244,6 +1337,7 @@ ${instructions}`;
     try {
       await this.applicationService.deleteResume(applicationId, resumeId);
       await this.refreshResumes(applicationId);
+      await this.loadApplications(); // Refresh applications list
       alert('Resume version deleted.');
     } catch (error: any) {
       console.error('Failed to delete resume:', error);

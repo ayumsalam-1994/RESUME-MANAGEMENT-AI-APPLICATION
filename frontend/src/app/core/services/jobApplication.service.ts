@@ -137,10 +137,11 @@ export class JobApplicationService {
     );
   }
 
-  async generateResume(applicationId: number, jobDescriptionOverride?: string, customPrompt?: string): Promise<Resume> {
+  async generateResume(applicationId: number, jobDescriptionOverride?: string, customPrompt?: string, model?: string): Promise<Resume> {
     const body: any = {};
     if (jobDescriptionOverride) body.jobDescription = jobDescriptionOverride;
     if (customPrompt) body.customPrompt = customPrompt;
+    if (model) body.model = model;
     return await firstValueFrom(
       this.http.post<Resume>(`${API_URL}/${applicationId}/resumes/generate`, body)
     );
@@ -155,6 +156,16 @@ export class JobApplicationService {
   async deleteResume(applicationId: number, resumeId: number): Promise<void> {
     await firstValueFrom(
       this.http.delete(`${API_URL}/${applicationId}/resumes/${resumeId}`)
+    );
+  }
+
+  async analyzeResume(applicationId: number, resumeId: number, model?: string): Promise<{id:number; matchScore:number|null; scoreBreakdown:string|null; suggestions:string|null; updatedAt:string;}> {
+    const body: any = {};
+    if (model) body.model = model;
+    return await firstValueFrom(
+      this.http.post<{id:number; matchScore:number|null; scoreBreakdown:string|null; suggestions:string|null; updatedAt:string;}>(
+        `${API_URL}/${applicationId}/resumes/${resumeId}/analyze`, body
+      )
     );
   }
 

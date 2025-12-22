@@ -40,14 +40,22 @@ export async function generateResume(req: Request, res: Response) {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     if (Number.isNaN(applicationId)) return res.status(400).json({ error: "Invalid application id" });
 
+    const allowedModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash-tts',
+      'gemini-3-flash',
+      'gemma-3-27b-it'
+    ] as const;
     const bodySchema = z.object({ 
       jobDescription: z.string().min(10).optional(), 
       customPrompt: z.string().optional(),
+      model: z.enum(allowedModels).optional(),
       fallback: z.boolean().optional() 
     });
-    const { jobDescription, customPrompt } = bodySchema.parse(req.body ?? {});
+    const { jobDescription, customPrompt, model } = bodySchema.parse(req.body ?? {});
 
-    const resume = await resumeService.generateForApplication(userId, applicationId, jobDescription, customPrompt);
+    const resume = await resumeService.generateForApplication(userId, applicationId, jobDescription, customPrompt, model);
     res.status(201).json(resume);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
@@ -112,6 +120,38 @@ export async function exportResumePDF(req: Request, res: Response) {
     res.send(pdfBuffer);
   } catch (error: any) {
     console.error("PDF export error:", error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Analyze resume against job description
+export async function analyzeResume(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const applicationId = Number(req.params.applicationId);
+    const resumeId = Number(req.params.resumeId);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (Number.isNaN(applicationId) || Number.isNaN(resumeId)) {
+      return res.status(400).json({ error: "Invalid ids" });
+    }
+
+    const allowedModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash-tts',
+      'gemini-3-flash',
+      'gemma-3-27b-it'
+    ] as const;
+
+    const bodySchema = z.object({ model: z.enum(allowedModels).optional() });
+    const { model } = bodySchema.parse(req.body ?? {});
+
+    const result = await resumeService.analyzeResume(userId, applicationId, resumeId, model);
+    res.json(result);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
     res.status(500).json({ error: error.message });
   }
 }
