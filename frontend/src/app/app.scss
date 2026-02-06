@@ -7,7 +7,7 @@
 	color: #e2e8f0;
 	position: sticky;
 	top: 0;
-	z-index: 10;
+	z-index: 15;
 }
 
 .brand {
@@ -111,6 +111,7 @@
 		box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
 		transition: right 0.3s ease;
 		overflow-y: auto;
+		z-index: 30;
 
 		&.mobile-open {
 			right: 0;

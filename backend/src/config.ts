@@ -24,6 +24,6 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET as string,
   geminiKey: process.env.GEMINI_API_KEY as string,
   frontendOrigin: process.env.FRONTEND_ORIGIN as string,
-  jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || "15m",
-  jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || "7d"
+  jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || "7d",
+  jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || "30d"
 };

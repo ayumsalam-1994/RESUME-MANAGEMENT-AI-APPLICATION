@@ -9,7 +9,7 @@ const ProjectSchema = z.object({
   description: z.string().optional(),
   role: z.string().optional(),
   achievements: z.string().optional(),
-  techStack: z.string().optional(),
+  techStack: z.string().nullable().optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
   url: z.string().url().optional(),
@@ -99,7 +99,11 @@ export async function createProject(req: Request, res: Response) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const data = ProjectSchema.parse(req.body);
+    const payload = {
+      ...req.body,
+      techStack: req.body.techStack ?? undefined
+    };
+    const data = ProjectSchema.parse(payload);
     const project = await projectService.createProject(userId, data);
 
     res.status(201).json(project);
@@ -125,7 +129,11 @@ export async function updateProject(req: Request, res: Response) {
       return res.status(400).json({ error: "Invalid project id" });
     }
 
-    const data = ProjectSchema.partial().parse(req.body);
+    const payload = {
+      ...req.body,
+      techStack: req.body.techStack ?? undefined
+    };
+    const data = ProjectSchema.partial().parse(payload);
     const project = await projectService.updateProject(projectId, userId, data);
 
     res.json(project);

@@ -1,0 +1,81 @@
+name: Deploy to GCP Cloud Run
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+  GAR_REPO: ${{ secrets.GCP_GAR_REPO }}
+  SERVICE_BACKEND: ${{ secrets.GCP_BACKEND_SERVICE }}
+  SERVICE_FRONTEND: ${{ secrets.GCP_FRONTEND_SERVICE }}
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+
+      - name: Build backend image
+        run: |
+          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$GAR_REPO/resume-backend:latest ./backend
+
+      - name: Push backend image
+        run: |
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$GAR_REPO/resume-backend:latest
+
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy $SERVICE_BACKEND \
+            --image $REGION-docker.pkg.dev/$PROJECT_ID/$GAR_REPO/resume-backend:latest \
+            --region $REGION \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 3000
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+
+      - name: Build frontend image
+        run: |
+          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$GAR_REPO/resume-frontend:latest ./frontend
+
+      - name: Push frontend image
+        run: |
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$GAR_REPO/resume-frontend:latest
+
+      - name: Deploy frontend to Cloud Run
+        run: |
+          gcloud run deploy $SERVICE_FRONTEND \
+            --image $REGION-docker.pkg.dev/$PROJECT_ID/$GAR_REPO/resume-frontend:latest \
+            --region $REGION \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 80

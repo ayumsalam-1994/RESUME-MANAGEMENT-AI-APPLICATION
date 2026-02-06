@@ -72,8 +72,7 @@ export class ProjectService {
       this.projectsSignal.set(projects);
       return projects;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to load projects';
-      this.errorSignal.set(message);
+      this.errorSignal.set(this.toErrorMessage(error, 'Failed to load projects'));
       throw error;
     } finally {
       this.loadingSignal.set(false);
@@ -97,8 +96,7 @@ export class ProjectService {
       this.projectsSignal.update((list) => [...list, project].sort((a, b) => a.order - b.order));
       return project;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to create project';
-      this.errorSignal.set(message);
+      this.errorSignal.set(this.toErrorMessage(error, 'Failed to create project'));
       throw error;
     } finally {
       this.loadingSignal.set(false);
@@ -281,5 +279,17 @@ export class ProjectService {
 
   clearError(): void {
     this.errorSignal.set(null);
+  }
+
+  private toErrorMessage(error: any, fallback: string): string {
+    const raw = error?.error?.error ?? error?.error?.message ?? error?.message ?? fallback;
+    if (typeof raw === 'string') return raw;
+    if (Array.isArray(raw)) return 'Please check the form fields and try again.';
+    if (typeof raw === 'object') return 'Something went wrong. Please try again.';
+    try {
+      return JSON.stringify(raw);
+    } catch {
+      return fallback;
+    }
   }
 }

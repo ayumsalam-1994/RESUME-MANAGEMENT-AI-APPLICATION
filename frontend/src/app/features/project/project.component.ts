@@ -61,8 +61,12 @@ import {
                   </div>
 
                   <div class="form-group">
-                    <label>Tech Stack (comma-separated)</label>
-                    <input formControlName="techStack" type="text" />
+                    <label>Skills (comma-separated)</label>
+                    <input
+                      formControlName="techStack"
+                      type="text"
+                      placeholder="e.g., Angular, Node.js, MySQL"
+                    />
                   </div>
 
                   <div class="form-row">
@@ -74,11 +78,6 @@ import {
                       <label>End Date</label>
                       <input formControlName="endDate" type="date" />
                     </div>
-                  </div>
-
-                  <div class="form-group">
-                    <label>Project URL</label>
-                    <input formControlName="url" type="url" />
                   </div>
 
                   <div class="actions">
@@ -106,9 +105,6 @@ import {
                         Timeline not set
                       }
                     </p>
-                    @if (project.url) {
-                      <p class="link"><a [href]="project.url" target="_blank" rel="noopener">View project</a></p>
-                    }
                     @if (project.summary) {
                       <p class="summary">{{ project.summary }}</p>
                     }
@@ -144,7 +140,7 @@ import {
                       </ul>
                     }
                     @if (project.techStack) {
-                      <p class="tech">Tech Stack: {{ project.techStack }}</p>
+                      <p class="tech">Skills: {{ project.techStack }}</p>
                     }
                   </div>
                   <div class="chip" *ngIf="project.archived">Archived</div>
@@ -157,6 +153,7 @@ import {
                         <textarea
                           [(ngModel)]="bulletDrafts[project.id]"
                           [name]="'bullet-' + project.id"
+                          [ngModelOptions]="{ standalone: true }"
                           rows="2"
                           placeholder="Add a bullet point"
                           required
@@ -195,7 +192,7 @@ import {
 
                 <!-- Add Image Form -->
                 @if (addingImageFor === project.id) {
-                  <form [formGroup]="imageForm" (ngSubmit)="addImage(project.id)">
+                  <form class="image-actions" [formGroup]="imageForm" (ngSubmit)="addImage(project.id)">
                     <div class="form-row">
                       <div class="form-group">
                         <label>Image URL</label>
@@ -220,7 +217,9 @@ import {
                     </div>
                   </form>
                 } @else {
-                  <button class="secondary small" (click)="startAddImage(project.id)">+ Add Image</button>
+                  <div class="image-actions">
+                    <button class="secondary small" (click)="startAddImage(project.id)">+ Add Image</button>
+                  </div>
                 }
 
                 <div class="actions">
@@ -305,6 +304,7 @@ import {
                   <textarea
                     [(ngModel)]="newProjectBullet"
                     name="newProjectBullet"
+                    [ngModelOptions]="{ standalone: true }"
                     rows="2"
                     placeholder="Add a bullet point"
                   ></textarea>
@@ -325,8 +325,12 @@ import {
               </div>
 
               <div class="form-group">
-                <label>Tech Stack (comma-separated)</label>
-                <input formControlName="techStack" type="text" />
+                <label>Skills (comma-separated)</label>
+                <input
+                  formControlName="techStack"
+                  type="text"
+                  placeholder="e.g., Angular, Node.js, MySQL"
+                />
               </div>
 
               <div class="form-row">
@@ -338,11 +342,6 @@ import {
                   <label>End Date</label>
                   <input formControlName="endDate" type="date" />
                 </div>
-              </div>
-
-              <div class="form-group">
-                <label>Project URL</label>
-                <input formControlName="url" type="url" />
               </div>
 
               <div class="actions">
@@ -513,6 +512,10 @@ import {
       border: 1px solid #eee;
       border-radius: 6px;
       background: #fafafa;
+    }
+
+    .image-actions {
+      margin-top: 12px;
     }
 
     .caption {
@@ -709,7 +712,6 @@ export class ProjectComponent implements OnInit {
       techStack: [''],
       startDate: [''],
       endDate: [''],
-      url: [''],
       archived: [false]
     });
 
@@ -753,7 +755,6 @@ export class ProjectComponent implements OnInit {
       techStack: project.techStack || '',
       startDate: project.startDate ? project.startDate.split('T')[0] : '',
       endDate: project.endDate ? project.endDate.split('T')[0] : '',
-      url: project.url || '',
       archived: project.archived
     });
     this.addingBulletFor = null;
@@ -770,6 +771,8 @@ export class ProjectComponent implements OnInit {
           await this.projectService.addBullet(project.id, this.newProjectBullets[i], i);
         }
       }
+
+      await this.projectService.getProjects(this.includeArchived);
 
       this.cancelEdit();
       alert('Project added successfully!');

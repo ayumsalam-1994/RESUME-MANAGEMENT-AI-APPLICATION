@@ -22,16 +22,21 @@ import { ProjectService } from '../../core/services/project.service';
           <h2>Job Applications</h2>
           <p class="subtext">Track your job search targets and applications</p>
         </div>
-        <div class="filters">
-          <select [(ngModel)]="selectedStatus" (change)="filterByStatus()">
-            <option value="">All Status</option>
-            <option value="draft">Draft</option>
-            <option value="applied">Applied</option>
-            <option value="interviewing">Interviewing</option>
-            <option value="offer">Offer</option>
-            <option value="rejected">Rejected</option>
-            <option value="withdrawn">Withdrawn</option>
-          </select>
+        <div class="header-actions">
+          @if (!editingId && !isAddingNew) {
+            <button class="primary" (click)="startAddApplication()">+ Add Job Target</button>
+          }
+          <div class="filters">
+            <select [(ngModel)]="selectedStatus" (change)="filterByStatus()">
+              <option value="">All Status</option>
+              <option value="draft">Draft</option>
+              <option value="applied">Applied</option>
+              <option value="interviewing">Interviewing</option>
+              <option value="offer">Offer</option>
+              <option value="rejected">Rejected</option>
+              <option value="withdrawn">Withdrawn</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -44,6 +49,10 @@ import { ProjectService } from '../../core/services/project.service';
 
       @if (applicationService.loadingSignal()) {
         <p class="loading">Loading applications...</p>
+      }
+
+      @if (analysisToast) {
+        <div class="toast toast-success">{{ analysisToast }}</div>
       }
 
       <div class="application-list">
@@ -267,7 +276,11 @@ import { ProjectService } from '../../core/services/project.service';
                           }
 
                           @if (resume.analysis?.matchScore !== null || resume.analysis?.suggestions) {
-                            <div class="analysis">
+                            <div
+                              class="analysis"
+                              [attr.id]="'analysis-' + app.id + '-' + resume.id"
+                              [class.highlight]="highlightedAnalysisId === app.id + '-' + resume.id"
+                            >
                               <div class="analysis-header">
                                 <strong>Fit Analysis</strong>
                                 @if (resume.analysis?.matchScore !== null) {
@@ -307,10 +320,6 @@ import { ProjectService } from '../../core/services/project.service';
           </div>
         }
       </div>
-
-      @if (!editingId && !isAddingNew) {
-        <button class="secondary" (click)="startAddApplication()">+ Add Job Target</button>
-      }
 
       @if (isAddingNew) {
         <div class="application-card add-form">
@@ -402,6 +411,7 @@ import { ProjectService } from '../../core/services/project.service';
       max-width: 1000px;
       margin: 0 auto;
       padding: 20px;
+      overflow: visible;
     }
 
     .header {
@@ -409,6 +419,14 @@ import { ProjectService } from '../../core/services/project.service';
       justify-content: space-between;
       align-items: center;
       margin-bottom: 16px;
+      position: static;
+      padding: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .subtext {
@@ -476,6 +494,7 @@ import { ProjectService } from '../../core/services/project.service';
       display: grid;
       gap: 16px;
       margin-bottom: 24px;
+      overflow: visible;
     }
 
     .application-card {
@@ -727,9 +746,40 @@ import { ProjectService } from '../../core/services/project.service';
     .analysis {
       margin-top: 8px;
       padding: 8px;
-      border: 1px solid #e1e1e1;
+      border: 1px solid #b6d4fe;
       border-radius: 6px;
-      background: #fafafa;
+      background: #f1f8ff;
+    }
+
+    .analysis.highlight {
+      border-color: #90caf9;
+      background: #e3f2fd;
+      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.15);
+      animation: pulseHighlight 1.6s ease-in-out 1;
+    }
+
+    @keyframes pulseHighlight {
+      0% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.0); }
+      30% { box-shadow: 0 0 0 6px rgba(33, 150, 243, 0.20); }
+      100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.0); }
+    }
+
+    .toast {
+      position: sticky;
+      top: 64px;
+      z-index: 20;
+      margin: 8px 0 12px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+
+    .toast-success {
+      background: #e6f4ea;
+      border-color: #a7e0b5;
+      color: #1e7e34;
     }
     .analysis-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
     .score-badge {
@@ -822,6 +872,12 @@ import { ProjectService } from '../../core/services/project.service';
         flex-direction: column;
         align-items: flex-start;
         gap: 12px;
+      }
+
+      .header-actions {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
       }
 
       .filters select {
@@ -948,6 +1004,8 @@ export class JobApplicationComponent implements OnInit {
   rawPanels: Record<number, boolean> = {};
   generatingResume: Record<number, boolean> = {};
   analyzingResume: Record<number, boolean> = {};
+  highlightedAnalysisId: string | null = null;
+  analysisToast: string | null = null;
   importingTo: number | null = null;
   importContent = '';
   showPromptEditor = false;
@@ -1004,9 +1062,10 @@ export class JobApplicationComponent implements OnInit {
     });
   }
 
-  private async loadApplications(): Promise<void> {
+  private async loadApplications(keepFilter = true): Promise<void> {
     try {
-      await this.applicationService.getApplications();
+      const status = keepFilter ? this.selectedStatus || undefined : undefined;
+      await this.applicationService.getApplications(status);
     } catch (error) {
       console.error('Failed to load applications:', error);
     }
@@ -1157,6 +1216,7 @@ export class JobApplicationComponent implements OnInit {
       alert('Resume generated successfully!');
       this.resumePanels[applicationId] = true;
     } catch (error: any) {
+      this.generatingResume[applicationId] = false;
       console.error('Failed to generate resume:', error);
       const errorMsg = error?.message || 'Failed to generate resume';
       alert(`Resume generation not successful.\n\nPlease use the "Copy Prompt" button to generate your resume manually.\n\nError: ${errorMsg}`);
@@ -1199,7 +1259,30 @@ export class JobApplicationComponent implements OnInit {
       const result = await this.applicationService.analyzeResume(applicationId, resumeId, model);
       await this.refreshResumes(applicationId);
       await this.loadApplications(); // Refresh applications list
+
+      this.analysisToast = 'Analyze Fit complete';
+      setTimeout(() => {
+        if (this.analysisToast) {
+          this.analysisToast = null;
+        }
+      }, 2200);
+
+      // Auto-scroll to analysis result so the user sees it immediately
+      const highlightId = `${applicationId}-${resumeId}`;
+      this.highlightedAnalysisId = highlightId;
+      setTimeout(() => {
+        const el = document.getElementById(`analysis-${applicationId}-${resumeId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 0);
+      setTimeout(() => {
+        if (this.highlightedAnalysisId === highlightId) {
+          this.highlightedAnalysisId = null;
+        }
+      }, 2500);
     } catch (error: any) {
+      this.analyzingResume[applicationId] = false;
       console.error('Failed to analyze resume:', error);
       const errorMsg = error?.error?.error || error?.message || 'Failed to analyze resume';
       alert(`Analysis failed: ${errorMsg}`);
