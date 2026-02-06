@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 /* Global Styles */
 * {
   margin: 0;
@@ -6,33 +8,34 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f6f8fb;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 /* Global title/subtitle emphasis for readability on gradient backgrounds */
 h1,
 h2 {
-  color: #1f2430;
+  color: #0f172a;
   font-weight: 700;
   letter-spacing: -0.3px;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55), 0 6px 18px rgba(31, 36, 48, 0.12);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 h3 {
-  color: #242936;
+  color: #1e293b;
   font-weight: 600;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4), 0 4px 12px rgba(31, 36, 48, 0.08);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 .subtitle,
 .subtext,
 .page-subtitle {
-  color: #3b4050;
+  color: #475569;
   font-weight: 500;
-  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.45);
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.35);
 }
 
 /* Mobile-friendly base styles */
@@ -45,6 +48,14 @@ html {
 button, a, input[type="submit"], input[type="button"] {
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
   touch-action: manipulation;
+}
+
+a {
+  color: #1e3a8a;
+}
+
+a:hover {
+  color: #14b8a6;
 }
 
 /* Prevent horizontal scroll */

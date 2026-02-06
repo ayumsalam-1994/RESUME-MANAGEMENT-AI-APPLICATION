@@ -11,7 +11,7 @@ import { AuthService } from '../../core/services/auth.service';
     <div class="login-container">
       <div class="login-card">
         <h1>Login</h1>
-        <p class="subtitle">Welcome back to Resume AI</p>
+        <p class="subtitle">Welcome back to RoleFit</p>
 
         @if (errorMessage()) {
           <div class="error-message">{{ errorMessage() }}</div>

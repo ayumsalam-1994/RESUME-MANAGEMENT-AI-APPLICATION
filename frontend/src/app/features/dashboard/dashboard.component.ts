@@ -9,7 +9,7 @@ import { AuthService } from '../../core/services/auth.service';
     <div class="dashboard">
       <nav class="navbar">
         <div class="navbar-content">
-          <h1>Resume AI</h1>
+          <h1>RoleFit</h1>
           <div class="navbar-actions">
             @if (authService.currentUser(); as user) {
               <span class="user-info">{{ user.email }}</span>
@@ -21,7 +21,7 @@ import { AuthService } from '../../core/services/auth.service';
 
       <div class="dashboard-content">
         <h2>Dashboard</h2>
-        <p>Welcome to Resume AI Application!</p>
+        <p>RoleFit helps you generate the right resume for every job application—automatically.</p>
 
         <div class="feature-cards">
           <div class="card" (click)="navigateToProfile()">
@@ -62,7 +62,7 @@ import { AuthService } from '../../core/services/auth.service';
   styles: [`
     .dashboard {
       min-height: 100vh;
-      background: #f5f5f5;
+      background: #f8fafc;
     }
 
     .navbar {

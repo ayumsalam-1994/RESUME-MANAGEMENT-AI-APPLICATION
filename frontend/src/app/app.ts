@@ -10,7 +10,7 @@ import { AuthService } from './core/services/auth.service';
   styleUrl: './app.scss'
 })
 export class App {
-  protected readonly title = signal('resume-ai-frontend');
+  protected readonly title = signal('rolefit');
   mobileMenuOpen = signal(false);
 
   constructor(public authService: AuthService, private router: Router) {}
