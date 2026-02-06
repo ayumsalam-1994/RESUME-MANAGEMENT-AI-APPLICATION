@@ -20,10 +20,15 @@ import {
           <h2>Projects</h2>
           <p class="subtext">Manage your projects, images, and archive status</p>
         </div>
-        <label class="toggle">
-          <input type="checkbox" [checked]="includeArchived" (change)="toggleArchived($event)" />
-          <span>Show archived</span>
-        </label>
+        <div class="header-actions">
+          @if (!editingId && !isAddingNew) {
+            <button class="secondary" (click)="startAddProject()">+ Add Project</button>
+          }
+          <label class="toggle">
+            <input type="checkbox" [checked]="includeArchived" (change)="toggleArchived($event)" />
+            <span>Show archived</span>
+          </label>
+        </div>
       </div>
 
       @if (projectService.errorSignal()) {
@@ -38,6 +43,117 @@ import {
       }
 
       @if (projectForm) {
+        <!-- Add Project Form -->
+        @if (isAddingNew) {
+          <div class="project-card add-form">
+            <h3>Add Project</h3>
+            <form [formGroup]="projectForm" (ngSubmit)="addProject()">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Title</label>
+                  <input formControlName="title" type="text" />
+                </div>
+                <div class="form-group">
+                  <label>Role</label>
+                  <input formControlName="role" type="text" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Summary</label>
+                <textarea formControlName="summary" rows="2"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label>Bullet Points</label>
+
+                @if (newProjectBullets.length) {
+                  <ul class="bullets">
+                    @for (bullet of newProjectBullets; track bullet; let bIdx = $index) {
+                      <li>
+                        <span>{{ bullet }}</span>
+                        <div class="bullet-controls">
+                          <button
+                            class="ghost small"
+                            type="button"
+                            (click)="moveNewProjectBullet(bIdx, 'up')"
+                            [disabled]="bIdx === 0"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            class="ghost small"
+                            type="button"
+                            (click)="moveNewProjectBullet(bIdx, 'down')"
+                            [disabled]="bIdx === newProjectBullets.length - 1"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            class="danger small"
+                            type="button"
+                            (click)="removeNewProjectBullet(bIdx)"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+
+                <div class="form-group">
+                  <textarea
+                    [(ngModel)]="newProjectBullet"
+                    name="newProjectBullet"
+                    [ngModelOptions]="{ standalone: true }"
+                    rows="2"
+                    placeholder="Add a bullet point"
+                  ></textarea>
+                </div>
+                <div class="actions">
+                  <button type="button" class="primary small" (click)="addNewProjectBullet()">
+                    Add Bullet
+                  </button>
+                  <button
+                    type="button"
+                    class="small"
+                    (click)="clearNewProjectBullets()"
+                    [disabled]="!newProjectBullets.length"
+                  >
+                    Clear Bullets
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Skills (comma-separated)</label>
+                <input
+                  formControlName="techStack"
+                  type="text"
+                  placeholder="e.g., Angular, Node.js, MySQL"
+                />
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Start Date</label>
+                  <input formControlName="startDate" type="date" />
+                </div>
+                <div class="form-group">
+                  <label>End Date</label>
+                  <input formControlName="endDate" type="date" />
+                </div>
+              </div>
+
+              <div class="actions">
+                <button type="submit" class="primary">Add</button>
+                <button type="button" (click)="cancelEdit()">Cancel</button>
+              </div>
+            </form>
+          </div>
+        }
+
         <div class="project-list">
           @for (project of projectService.projectsSignal(); track project.id; let idx = $index) {
             <div class="project-card" [class.archived]="project.archived">
@@ -236,121 +352,6 @@ import {
           }
         </div>
 
-        <!-- Add Project Button -->
-        @if (!editingId && !isAddingNew) {
-          <button class="secondary" (click)="startAddProject()">+ Add Project</button>
-        }
-
-        <!-- Add Project Form -->
-        @if (isAddingNew) {
-          <div class="project-card add-form">
-            <h3>Add Project</h3>
-            <form [formGroup]="projectForm" (ngSubmit)="addProject()">
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Title</label>
-                  <input formControlName="title" type="text" />
-                </div>
-                <div class="form-group">
-                  <label>Role</label>
-                  <input formControlName="role" type="text" />
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>Summary</label>
-                <textarea formControlName="summary" rows="2"></textarea>
-              </div>
-
-              <div class="form-group">
-                <label>Bullet Points</label>
-
-                @if (newProjectBullets.length) {
-                  <ul class="bullets">
-                    @for (bullet of newProjectBullets; track bullet; let bIdx = $index) {
-                      <li>
-                        <span>{{ bullet }}</span>
-                        <div class="bullet-controls">
-                          <button
-                            class="ghost small"
-                            type="button"
-                            (click)="moveNewProjectBullet(bIdx, 'up')"
-                            [disabled]="bIdx === 0"
-                          >
-                            ↑
-                          </button>
-                          <button
-                            class="ghost small"
-                            type="button"
-                            (click)="moveNewProjectBullet(bIdx, 'down')"
-                            [disabled]="bIdx === newProjectBullets.length - 1"
-                          >
-                            ↓
-                          </button>
-                          <button
-                            class="danger small"
-                            type="button"
-                            (click)="removeNewProjectBullet(bIdx)"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </li>
-                    }
-                  </ul>
-                }
-
-                <div class="form-group">
-                  <textarea
-                    [(ngModel)]="newProjectBullet"
-                    name="newProjectBullet"
-                    [ngModelOptions]="{ standalone: true }"
-                    rows="2"
-                    placeholder="Add a bullet point"
-                  ></textarea>
-                </div>
-                <div class="actions">
-                  <button type="button" class="primary small" (click)="addNewProjectBullet()">
-                    Add Bullet
-                  </button>
-                  <button
-                    type="button"
-                    class="small"
-                    (click)="clearNewProjectBullets()"
-                    [disabled]="!newProjectBullets.length"
-                  >
-                    Clear Bullets
-                  </button>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>Skills (comma-separated)</label>
-                <input
-                  formControlName="techStack"
-                  type="text"
-                  placeholder="e.g., Angular, Node.js, MySQL"
-                />
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Start Date</label>
-                  <input formControlName="startDate" type="date" />
-                </div>
-                <div class="form-group">
-                  <label>End Date</label>
-                  <input formControlName="endDate" type="date" />
-                </div>
-              </div>
-
-              <div class="actions">
-                <button type="submit" class="primary">Add</button>
-                <button type="button" (click)="cancelEdit()">Cancel</button>
-              </div>
-            </form>
-          </div>
-        }
       }
     </div>
   `,
@@ -366,6 +367,12 @@ import {
       justify-content: space-between;
       align-items: center;
       margin-bottom: 16px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .subtext {
@@ -419,6 +426,10 @@ import {
       &.archived {
         background: #f6f6f6;
         border-style: dashed;
+      }
+
+      &.add-form {
+        margin-bottom: 20px;
       }
     }
 

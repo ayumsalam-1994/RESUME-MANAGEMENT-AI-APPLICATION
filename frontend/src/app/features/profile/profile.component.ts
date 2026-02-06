@@ -11,6 +11,7 @@ import { AuthService } from '../../core/services/auth.service';
   template: `
     <div class="container">
       <h2>My Profile</h2>
+      <p class="subtext">Keep your personal details and education aligned for resume generation.</p>
 
       @if (profileService.errorSignal()) {
         <div class="error-message">
@@ -255,7 +256,11 @@ import { AuthService } from '../../core/services/auth.service';
     }
 
     h2 {
-      margin-bottom: 20px;
+      margin: 0 0 2px;
+    }
+
+    .subtext {
+      margin: 0 0 22px;
     }
 
     .section {
@@ -263,6 +268,7 @@ import { AuthService } from '../../core/services/auth.service';
       padding: 20px;
       border: 1px solid #e0e0e0;
       border-radius: 8px;
+      background: #fff;
     }
 
     h3 {

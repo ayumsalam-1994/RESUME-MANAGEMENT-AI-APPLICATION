@@ -9,6 +9,30 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #f6f8fb;
+}
+
+/* Global title/subtitle emphasis for readability on gradient backgrounds */
+h1,
+h2 {
+  color: #1f2430;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55), 0 6px 18px rgba(31, 36, 48, 0.12);
+}
+
+h3 {
+  color: #242936;
+  font-weight: 600;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4), 0 4px 12px rgba(31, 36, 48, 0.08);
+}
+
+.subtitle,
+.subtext,
+.page-subtitle {
+  color: #3b4050;
+  font-weight: 500;
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.45);
 }
 
 /* Mobile-friendly base styles */
@@ -27,6 +51,31 @@ button, a, input[type="submit"], input[type="button"] {
 body, html {
   overflow-x: hidden;
   max-width: 100%;
+}
+
+/* Subtle animated gradient background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(circle at 20% 20%, rgba(168, 237, 234, 0.20), transparent 45%),
+              radial-gradient(circle at 80% 30%, rgba(254, 214, 227, 0.20), transparent 45%),
+              linear-gradient(to top, #a8edea 0%, #fed6e3 100%);
+  background-size: 160% 160%;
+  animation: subtleGradient 18s ease-in-out infinite;
+}
+
+@keyframes subtleGradient {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 0%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
 }
 
 /* Mobile responsive utilities */

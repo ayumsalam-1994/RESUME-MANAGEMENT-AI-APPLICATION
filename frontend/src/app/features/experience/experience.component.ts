@@ -9,7 +9,15 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
   imports: [CommonModule, FormsModule, ReactiveFormsModule],
   template: `
     <div class="container">
-      <h2>Work Experience</h2>
+      <div class="header">
+        <div>
+          <h2>Work Experience</h2>
+          <p class="subtext">Highlight roles, impact, and key responsibilities for each position.</p>
+        </div>
+        @if (!isAddingNew && !isEditingId) {
+          <button (click)="startAddExperience()" class="secondary">+ Add Work Experience</button>
+        }
+      </div>
 
       @if (experienceService.errorSignal()) {
         <div class="error-message">
@@ -21,6 +29,54 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
       @if (experienceService.loadingSignal()) {
         <p class="loading">Loading experiences...</p>
       } @else if (experienceForm) {
+        <!-- Add Experience Form -->
+        @if (isAddingNew) {
+          <div class="experience-card add-form">
+            <h3>Add Work Experience</h3>
+            <form [formGroup]="experienceForm" (ngSubmit)="addNewExperience()">
+              <div class="form-group">
+                <label>Company</label>
+                <input formControlName="company" type="text" />
+              </div>
+
+              <div class="form-group">
+                <label>Position</label>
+                <input formControlName="position" type="text" />
+              </div>
+
+              <div class="form-group">
+                <label>Location</label>
+                <input formControlName="location" type="text" />
+              </div>
+
+              <div class="form-group">
+                <label>Start Date</label>
+                <input formControlName="startDate" type="date" />
+              </div>
+
+              <div class="form-group">
+                <label>End Date</label>
+                <input formControlName="endDate" type="date" />
+              </div>
+
+              <div class="form-group checkbox">
+                <label>
+                  <input formControlName="current" type="checkbox" />
+                  Currently Working Here
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label>Description</label>
+                <textarea formControlName="description" rows="3"></textarea>
+              </div>
+
+              <button type="submit">Add Experience</button>
+              <button type="button" (click)="cancelEdit()">Cancel</button>
+            </form>
+          </div>
+        }
+
         <!-- Experience List -->
         @if (experienceService.experiencesSignal().length > 0) {
           <div class="experiences-list">
@@ -157,60 +213,6 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
           </div>
         }
 
-        <!-- Add Experience Button -->
-        @if (!isAddingNew && !isEditingId) {
-          <button (click)="startAddExperience()" class="secondary">
-            + Add Work Experience
-          </button>
-        }
-
-        <!-- Add Experience Form -->
-        @if (isAddingNew) {
-          <div class="experience-card add-form">
-            <h3>Add Work Experience</h3>
-            <form [formGroup]="experienceForm" (ngSubmit)="addNewExperience()">
-              <div class="form-group">
-                <label>Company</label>
-                <input formControlName="company" type="text" />
-              </div>
-
-              <div class="form-group">
-                <label>Position</label>
-                <input formControlName="position" type="text" />
-              </div>
-
-              <div class="form-group">
-                <label>Location</label>
-                <input formControlName="location" type="text" />
-              </div>
-
-              <div class="form-group">
-                <label>Start Date</label>
-                <input formControlName="startDate" type="date" />
-              </div>
-
-              <div class="form-group">
-                <label>End Date</label>
-                <input formControlName="endDate" type="date" />
-              </div>
-
-              <div class="form-group checkbox">
-                <label>
-                  <input formControlName="current" type="checkbox" />
-                  Currently Working Here
-                </label>
-              </div>
-
-              <div class="form-group">
-                <label>Description</label>
-                <textarea formControlName="description" rows="3"></textarea>
-              </div>
-
-              <button type="submit">Add Experience</button>
-              <button type="button" (click)="cancelEdit()">Cancel</button>
-            </form>
-          </div>
-        }
       }
     </div>
   `,
@@ -221,8 +223,19 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
       padding: 20px;
     }
 
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
     h2 {
-      margin-bottom: 20px;
+      margin: 0 0 4px;
+    }
+
+    .subtext {
+      margin: 0;
     }
 
     .error-message {
