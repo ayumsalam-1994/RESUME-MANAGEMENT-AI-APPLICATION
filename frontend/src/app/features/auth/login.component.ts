@@ -12,6 +12,7 @@ import { AuthService } from '../../core/services/auth.service';
       <div class="login-card">
         <h1>Login</h1>
         <p class="subtitle">Welcome back to RoleFit</p>
+        <p class="subtitle">admin@gmail.com, Admin123!</p>
 
         @if (errorMessage()) {
           <div class="error-message">{{ errorMessage() }}</div>

@@ -9,7 +9,10 @@ const ProjectSchema = z.object({
   description: z.string().optional(),
   role: z.string().optional(),
   achievements: z.string().optional(),
-  techStack: z.string().nullable().optional(),
+  techStack: z.preprocess(
+    (value) => (value === null ? undefined : value),
+    z.string().optional()
+  ),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
   url: z.string().url().optional(),

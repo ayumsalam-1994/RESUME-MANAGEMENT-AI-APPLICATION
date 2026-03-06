@@ -1,7 +1,6 @@
 import cors from "cors";
 import express from "express";
 import path from "path";
-import { fileURLToPath } from "url";
 import type { Request, Response } from "express";
 
 import { validateEnv, config } from "./validateEnv.js";
@@ -18,7 +17,6 @@ import certificationRoutes from "./routes/certification.routes.js";
 validateEnv();
 
 const app = express();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsPath = path.join(__dirname, "..", "uploads");
 
 app.use(
