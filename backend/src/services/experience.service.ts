@@ -17,9 +17,9 @@ export class ExperienceService {
   }
 
   // Get single experience with bullets
-  async getExperience(experienceId: number) {
-    const experience = await prisma.experience.findUnique({
-      where: { id: experienceId },
+  async getExperience(experienceId: number, userId: number) {
+    const experience = await prisma.experience.findFirst({
+      where: { id: experienceId, userId },
       include: {
         bullets: {
           orderBy: { order: 'asc' },
@@ -65,8 +65,16 @@ export class ExperienceService {
   // Update experience
   async updateExperience(
     experienceId: number,
+    userId: number,
     data: Record<string, unknown>
   ) {
+    const existing = await prisma.experience.findFirst({
+      where: { id: experienceId, userId },
+    });
+    if (!existing) {
+      throw new Error('Experience not found');
+    }
+
     const experience = await prisma.experience.update({
       where: { id: experienceId },
       data,
@@ -81,7 +89,14 @@ export class ExperienceService {
   }
 
   // Delete experience (cascades to bullets)
-  async deleteExperience(experienceId: number) {
+  async deleteExperience(experienceId: number, userId: number) {
+    const existing = await prisma.experience.findFirst({
+      where: { id: experienceId, userId },
+    });
+    if (!existing) {
+      throw new Error('Experience not found');
+    }
+
     await prisma.experience.delete({
       where: { id: experienceId },
     });
@@ -92,11 +107,19 @@ export class ExperienceService {
   // Add bullet point
   async addBullet(
     experienceId: number,
+    userId: number,
     data: {
       content: string;
       order?: number;
     }
   ) {
+    const experience = await prisma.experience.findFirst({
+      where: { id: experienceId, userId },
+    });
+    if (!experience) {
+      throw new Error('Experience not found');
+    }
+
     // Get current max order
     const maxBullet = await prisma.experienceBullet.findFirst({
       where: { experienceId },
@@ -120,11 +143,19 @@ export class ExperienceService {
   // Update bullet
   async updateBullet(
     bulletId: number,
+    userId: number,
     data: {
       content?: string;
       order?: number;
     }
   ) {
+    const existing = await prisma.experienceBullet.findFirst({
+      where: { id: bulletId, experience: { userId } },
+    });
+    if (!existing) {
+      throw new Error('Bullet not found');
+    }
+
     const bullet = await prisma.experienceBullet.update({
       where: { id: bulletId },
       data,
@@ -134,7 +165,14 @@ export class ExperienceService {
   }
 
   // Delete bullet
-  async deleteBullet(bulletId: number) {
+  async deleteBullet(bulletId: number, userId: number) {
+    const existing = await prisma.experienceBullet.findFirst({
+      where: { id: bulletId, experience: { userId } },
+    });
+    if (!existing) {
+      throw new Error('Bullet not found');
+    }
+
     await prisma.experienceBullet.delete({
       where: { id: bulletId },
     });
@@ -145,12 +183,20 @@ export class ExperienceService {
   // Reorder bullets
   async reorderBullets(
     experienceId: number,
+    userId: number,
     bulletIds: number[]
   ) {
-    // Update order for each bullet
+    const experience = await prisma.experience.findFirst({
+      where: { id: experienceId, userId },
+    });
+    if (!experience) {
+      throw new Error('Experience not found');
+    }
+
+    // Update order for each bullet, scoped to this experience so a foreign bulletId is silently ignored
     const updates = bulletIds.map((id, index) =>
-      prisma.experienceBullet.update({
-        where: { id },
+      prisma.experienceBullet.updateMany({
+        where: { id, experienceId },
         data: { order: index },
       })
     );

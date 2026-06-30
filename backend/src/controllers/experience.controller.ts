@@ -40,12 +40,17 @@ export async function getUserExperiences(req: Request, res: Response) {
 // Get single experience
 export async function getExperience(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const experienceId = Number(req.params.experienceId);
     if (Number.isNaN(experienceId)) {
       return res.status(400).json({ error: 'Invalid experience id' });
     }
 
-    const experience = await experienceService.getExperience(experienceId);
+    const experience = await experienceService.getExperience(experienceId, userId);
     res.json(experience);
   } catch (error: any) {
     res.status(404).json({ error: error.message });
@@ -85,6 +90,11 @@ export async function createExperience(req: Request, res: Response) {
 // Update experience
 export async function updateExperience(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const experienceId = Number(req.params.experienceId);
     if (Number.isNaN(experienceId)) {
       return res.status(400).json({ error: 'Invalid experience id' });
@@ -110,12 +120,16 @@ export async function updateExperience(req: Request, res: Response) {
 
     const experience = await experienceService.updateExperience(
       experienceId,
+      userId,
       data
     );
     res.json(experience);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
+    }
+    if (error.message === 'Experience not found') {
+      return res.status(404).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
   }
@@ -124,14 +138,22 @@ export async function updateExperience(req: Request, res: Response) {
 // Delete experience
 export async function deleteExperience(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const experienceId = Number(req.params.experienceId);
     if (Number.isNaN(experienceId)) {
       return res.status(400).json({ error: 'Invalid experience id' });
     }
 
-    await experienceService.deleteExperience(experienceId);
+    await experienceService.deleteExperience(experienceId, userId);
     res.json({ success: true });
   } catch (error: any) {
+    if (error.message === 'Experience not found') {
+      return res.status(404).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 }
@@ -139,6 +161,11 @@ export async function deleteExperience(req: Request, res: Response) {
 // Add bullet point
 export async function addBullet(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const experienceId = Number(req.params.experienceId);
     if (Number.isNaN(experienceId)) {
       return res.status(400).json({ error: 'Invalid experience id' });
@@ -146,11 +173,14 @@ export async function addBullet(req: Request, res: Response) {
 
     const data = BulletSchema.parse(req.body);
 
-    const bullet = await experienceService.addBullet(experienceId, data);
+    const bullet = await experienceService.addBullet(experienceId, userId, data);
     res.status(201).json(bullet);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
+    }
+    if (error.message === 'Experience not found') {
+      return res.status(404).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
   }
@@ -159,6 +189,11 @@ export async function addBullet(req: Request, res: Response) {
 // Update bullet
 export async function updateBullet(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const bulletId = Number(req.params.bulletId);
     if (Number.isNaN(bulletId)) {
       return res.status(400).json({ error: 'Invalid bullet id' });
@@ -166,11 +201,14 @@ export async function updateBullet(req: Request, res: Response) {
 
     const data = BulletSchema.partial().parse(req.body);
 
-    const bullet = await experienceService.updateBullet(bulletId, data);
+    const bullet = await experienceService.updateBullet(bulletId, userId, data);
     res.json(bullet);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
+    }
+    if (error.message === 'Bullet not found') {
+      return res.status(404).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
   }
@@ -179,14 +217,22 @@ export async function updateBullet(req: Request, res: Response) {
 // Delete bullet
 export async function deleteBullet(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const bulletId = Number(req.params.bulletId);
     if (Number.isNaN(bulletId)) {
       return res.status(400).json({ error: 'Invalid bullet id' });
     }
 
-    await experienceService.deleteBullet(bulletId);
+    await experienceService.deleteBullet(bulletId, userId);
     res.json({ success: true });
   } catch (error: any) {
+    if (error.message === 'Bullet not found') {
+      return res.status(404).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 }
@@ -194,6 +240,11 @@ export async function deleteBullet(req: Request, res: Response) {
 // Reorder bullets
 export async function reorderBullets(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const experienceId = Number(req.params.experienceId);
     if (Number.isNaN(experienceId)) {
       return res.status(400).json({ error: 'Invalid experience id' });
@@ -203,12 +254,16 @@ export async function reorderBullets(req: Request, res: Response) {
 
     const bullets = await experienceService.reorderBullets(
       experienceId,
+      userId,
       bulletIds
     );
     res.json(bullets);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
+    }
+    if (error.message === 'Experience not found') {
+      return res.status(404).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
   }

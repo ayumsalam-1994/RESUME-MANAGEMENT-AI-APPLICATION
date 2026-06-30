@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import path from "path";
 import type { Request, Response } from "express";
 
@@ -19,6 +20,8 @@ validateEnv();
 const app = express();
 const uploadsPath = path.join(__dirname, "..", "uploads");
 
+// crossOriginResourcePolicy relaxed so the frontend (different origin) can load /uploads images
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(
   cors({
     origin: config.frontendOrigin,

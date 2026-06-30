@@ -72,7 +72,15 @@ export class ProfileService {
   }
 
   // Update education
-  async updateEducation(educationId: number, data: Record<string, unknown>) {
+  async updateEducation(educationId: number, userId: number, data: Record<string, unknown>) {
+    const existing = await prisma.education.findFirst({
+      where: { id: educationId, profile: { userId } },
+    });
+
+    if (!existing) {
+      throw new Error('Education not found');
+    }
+
     const education = await prisma.education.update({
       where: { id: educationId },
       data,
@@ -82,7 +90,15 @@ export class ProfileService {
   }
 
   // Delete education
-  async deleteEducation(educationId: number) {
+  async deleteEducation(educationId: number, userId: number) {
+    const existing = await prisma.education.findFirst({
+      where: { id: educationId, profile: { userId } },
+    });
+
+    if (!existing) {
+      throw new Error('Education not found');
+    }
+
     await prisma.education.delete({
       where: { id: educationId },
     });

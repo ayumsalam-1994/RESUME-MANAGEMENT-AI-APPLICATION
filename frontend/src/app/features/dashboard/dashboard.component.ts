@@ -44,10 +44,9 @@ import { AuthService } from '../../core/services/auth.service';
             <p>Track your job applications and generate tailored resumes</p>
           </div>
 
-          <div class="card">
+          <div class="card" (click)="navigateToJobApplications()">
             <h3>AI Resume Builder</h3>
-            <p>Generate ATS-optimized resumes with AI</p>
-            <span class="status">Coming Soon</span>
+            <p>Generate ATS-optimized resumes with AI from a job application</p>
           </div>
 
           <div class="card">

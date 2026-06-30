@@ -117,6 +117,11 @@ export async function addEducation(req: Request, res: Response) {
 // Update education
 export async function updateEducation(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const educationId = Number(req.params.educationId);
     if (Number.isNaN(educationId)) {
       return res.status(400).json({ error: 'Invalid education id' });
@@ -137,11 +142,14 @@ export async function updateEducation(req: Request, res: Response) {
       data.current = validated.current;
     }
 
-    const education = await profileService.updateEducation(educationId, data);
+    const education = await profileService.updateEducation(educationId, userId, data);
     res.json(education);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
+    }
+    if (error.message === 'Education not found') {
+      return res.status(404).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
   }
@@ -150,14 +158,22 @@ export async function updateEducation(req: Request, res: Response) {
 // Delete education
 export async function deleteEducation(req: Request, res: Response) {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const educationId = Number(req.params.educationId);
     if (Number.isNaN(educationId)) {
       return res.status(400).json({ error: 'Invalid education id' });
     }
 
-    await profileService.deleteEducation(educationId);
+    await profileService.deleteEducation(educationId, userId);
     res.json({ success: true });
   } catch (error: any) {
+    if (error.message === 'Education not found') {
+      return res.status(404).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 }
