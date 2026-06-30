@@ -46,6 +46,7 @@ npm run dev
 Backend runs on `http://localhost:3000`
 
 ### Frontend Setup
+npm install -g @angular/cli
 
 ```bash
 cd frontend
