@@ -1,23 +1,27 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
-  selector: 'app-login',
+  selector: 'app-forgot-password',
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
   template: `
-    <div class="login-container">
-      <div class="login-card">
-        <h1>Login</h1>
-        <p class="subtitle">Welcome back to RoleFit</p>
+    <div class="forgot-password-container">
+      <div class="forgot-password-card">
+        <h1>Forgot Password</h1>
+        <p class="subtitle">Enter your email and we'll send you a reset link</p>
 
         @if (errorMessage()) {
           <div class="error-message">{{ errorMessage() }}</div>
         }
 
-        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+        @if (successMessage()) {
+          <div class="success-message">{{ successMessage() }}</div>
+        }
+
+        <form [formGroup]="forgotPasswordForm" (ngSubmit)="onSubmit()">
           <div class="form-group">
             <label for="email">Email</label>
             <input
@@ -27,42 +31,24 @@ import { AuthService } from '../../core/services/auth.service';
               placeholder="your@email.com"
               required
             />
-            @if (loginForm.get('email')?.invalid && loginForm.get('email')?.touched) {
+            @if (forgotPasswordForm.get('email')?.invalid && forgotPasswordForm.get('email')?.touched) {
               <span class="error">Valid email is required</span>
             }
           </div>
 
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              formControlName="password"
-              placeholder="Enter your password"
-              required
-            />
-            @if (loginForm.get('password')?.invalid && loginForm.get('password')?.touched) {
-              <span class="error">Password is required</span>
-            }
-          </div>
-
-          <button type="submit" [disabled]="loginForm.invalid || isLoading()">
-            {{ isLoading() ? 'Logging in...' : 'Login' }}
+          <button type="submit" [disabled]="forgotPasswordForm.invalid || isLoading()">
+            {{ isLoading() ? 'Sending...' : 'Send Reset Link' }}
           </button>
         </form>
 
-        <p class="register-link">
-          <a routerLink="/forgot-password">Forgot password?</a>
-        </p>
-
-        <p class="register-link">
-          Don't have an account? <a routerLink="/register">Register here</a>
+        <p class="login-link">
+          <a routerLink="/login">Back to login</a>
         </p>
       </div>
     </div>
   `,
   styles: [`
-    .login-container {
+    .forgot-password-container {
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -71,7 +57,7 @@ import { AuthService } from '../../core/services/auth.service';
       padding: 1rem;
     }
 
-    .login-card {
+    .forgot-password-card {
       background: white;
       padding: 2rem;
       border-radius: 8px;
@@ -130,6 +116,14 @@ import { AuthService } from '../../core/services/auth.service';
       margin-bottom: 1rem;
     }
 
+    .success-message {
+      background: #efe;
+      color: #3c3;
+      padding: 0.75rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+
     button {
       width: 100%;
       padding: 0.75rem;
@@ -151,27 +145,27 @@ import { AuthService } from '../../core/services/auth.service';
       cursor: not-allowed;
     }
 
-    .register-link {
+    .login-link {
       margin-top: 1.5rem;
       text-align: center;
       color: #666;
     }
 
-    .register-link a {
+    .login-link a {
       color: #667eea;
       text-decoration: none;
     }
 
-    .register-link a:hover {
+    .login-link a:hover {
       text-decoration: underline;
     }
 
     @media (max-width: 768px) {
-      .login-container {
+      .forgot-password-container {
         padding: 0.5rem;
       }
 
-      .login-card {
+      .forgot-password-card {
         padding: 1.5rem;
       }
 
@@ -185,33 +179,36 @@ import { AuthService } from '../../core/services/auth.service';
     }
   `]
 })
-export class LoginComponent {
+export class ForgotPasswordComponent {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
-  private router = inject(Router);
 
   isLoading = signal(false);
   errorMessage = signal('');
+  successMessage = signal('');
 
-  loginForm = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required]]
+  forgotPasswordForm = this.fb.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]]
   });
 
   onSubmit(): void {
-    if (this.loginForm.invalid) return;
+    if (this.forgotPasswordForm.invalid) return;
 
     this.isLoading.set(true);
     this.errorMessage.set('');
+    this.successMessage.set('');
 
-    this.authService.login(this.loginForm.getRawValue()).subscribe({
-      next: () => {
+    const { email } = this.forgotPasswordForm.getRawValue();
+
+    this.authService.forgotPassword(email).subscribe({
+      next: (response) => {
         this.isLoading.set(false);
-        this.router.navigate(['/dashboard']);
+        this.successMessage.set(response.message);
+        this.forgotPasswordForm.reset();
       },
       error: (error) => {
         this.isLoading.set(false);
-        this.errorMessage.set(error.error?.error || 'Login failed. Please try again.');
+        this.errorMessage.set(error.error?.error || 'Something went wrong. Please try again.');
       }
     });
   }

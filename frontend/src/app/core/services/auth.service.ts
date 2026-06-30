@@ -98,6 +98,20 @@ export class AuthService {
   }
 
   /**
+   * Request a password reset email
+   */
+  forgotPassword(email: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/forgot-password`, { email });
+  }
+
+  /**
+   * Complete a password reset using the token from the email link
+   */
+  resetPassword(token: string, newPassword: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/reset-password`, { token, newPassword });
+  }
+
+  /**
    * Get access token from storage
    */
   getAccessToken(): string | null {
