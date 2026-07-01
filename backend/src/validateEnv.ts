@@ -48,6 +48,10 @@ export function validateEnv(): void {
     warnings.push('FRONTEND_ORIGIN not set - CORS may not work in production');
   }
 
+  if (!process.env.RESEND_API_KEY) {
+    warnings.push('RESEND_API_KEY not set - password reset and other transactional emails will not send');
+  }
+
   if (process.env.JWT_SECRET && process.env.JWT_SECRET === 'change-me') {
     warnings.push('JWT_SECRET is using default value - INSECURE for production!');
   }

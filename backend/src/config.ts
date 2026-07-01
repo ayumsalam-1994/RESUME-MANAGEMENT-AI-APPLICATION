@@ -25,5 +25,7 @@ export const config = {
   geminiKey: process.env.GEMINI_API_KEY as string,
   frontendOrigin: process.env.FRONTEND_ORIGIN as string,
   jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || "15m",
-  jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || "30d"
+  jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || "30d",
+  resendApiKey: process.env.RESEND_API_KEY as string | undefined,
+  emailFrom: process.env.EMAIL_FROM || "RoleFit <onboarding@resend.dev>"
 };

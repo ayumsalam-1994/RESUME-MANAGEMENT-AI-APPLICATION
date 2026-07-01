@@ -21,15 +21,30 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  profile         Profile?
-  skills          UserSkill[]
-  experiences     Experience[]
-  projects        Project[]
-  jobApplications JobApplication[]
-  resumes         Resume[]
-  certifications  Certification[]
+  profile             Profile?
+  skills              UserSkill[]
+  experiences         Experience[]
+  projects            Project[]
+  jobApplications     JobApplication[]
+  resumes             Resume[]
+  certifications      Certification[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([email])
+}
+
+// Password Reset
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // User Profile

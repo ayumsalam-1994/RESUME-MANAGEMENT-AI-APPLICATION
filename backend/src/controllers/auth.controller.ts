@@ -1,9 +1,13 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 
+import { config } from "../config.js";
 import { prisma } from "../db/prisma.js";
 import { AuthService } from "../services/auth.service.js";
+import { EmailService } from "../services/email.service.js";
 import { UserRole } from "../types/auth.js";
+
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 // Validation schemas
 const registerSchema = z.object({
@@ -15,6 +19,15 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string()
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email()
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8)
 });
 
 export class AuthController {
@@ -179,6 +192,97 @@ export class AuthController {
       res.json({ accessToken: newAccessToken });
     } catch (error) {
       res.status(401).json({ error: "Invalid refresh token" });
+    }
+  }
+
+  /**
+   * Request a password reset email. Always responds with the same generic
+   * message regardless of whether the email exists, to avoid user enumeration.
+   */
+  static async forgotPassword(req: Request, res: Response): Promise<void> {
+    const genericResponse = {
+      message: "If an account exists for that email, a reset link has been sent."
+    };
+
+    try {
+      const { email } = forgotPasswordSchema.parse(req.body);
+
+      const user = await prisma.user.findUnique({ where: { email } });
+
+      if (user) {
+        const rawToken = AuthService.generateResetToken();
+        const tokenHash = AuthService.hashResetToken(rawToken);
+
+        await prisma.passwordResetToken.create({
+          data: {
+            userId: user.id,
+            tokenHash,
+            expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS)
+          }
+        });
+
+        const resetUrl = `${config.frontendOrigin}/reset-password?token=${rawToken}`;
+        await EmailService.sendPasswordResetEmail(user.email, resetUrl);
+      }
+
+      res.json(genericResponse);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res
+          .status(400)
+          .json({ error: "Validation error", details: error.errors });
+        return;
+      }
+      console.error("Forgot password error:", error);
+      res.json(genericResponse);
+    }
+  }
+
+  /**
+   * Complete a password reset using a token from the email link
+   */
+  static async resetPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const { token, newPassword } = resetPasswordSchema.parse(req.body);
+      const tokenHash = AuthService.hashResetToken(token);
+
+      const resetToken = await prisma.passwordResetToken.findUnique({
+        where: { tokenHash }
+      });
+
+      if (
+        !resetToken ||
+        resetToken.used ||
+        resetToken.expiresAt < new Date()
+      ) {
+        res.status(400).json({ error: "Invalid or expired reset token" });
+        return;
+      }
+
+      const hashedPassword = await AuthService.hashPassword(newPassword);
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: resetToken.userId },
+          data: { password: hashedPassword }
+        }),
+        // Invalidate this token plus any other outstanding reset requests for this user
+        prisma.passwordResetToken.updateMany({
+          where: { userId: resetToken.userId, used: false },
+          data: { used: true }
+        })
+      ]);
+
+      res.json({ message: "Password reset successful" });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res
+          .status(400)
+          .json({ error: "Validation error", details: error.errors });
+        return;
+      }
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: "Failed to reset password" });
     }
   }
 }

@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import jwt, { type SignOptions } from "jsonwebtoken";
 
 import { config } from "../config.js";
@@ -47,5 +48,19 @@ export class AuthService {
    */
   static verifyToken(token: string): JWTPayload {
     return jwt.verify(token, config.jwtSecret) as JWTPayload;
+  }
+
+  /**
+   * Generate a random password reset token (sent to the user in the email link)
+   */
+  static generateResetToken(): string {
+    return crypto.randomBytes(32).toString("hex");
+  }
+
+  /**
+   * Hash a reset token for storage - never store the raw token in the DB
+   */
+  static hashResetToken(token: string): string {
+    return crypto.createHash("sha256").update(token).digest("hex");
   }
 }

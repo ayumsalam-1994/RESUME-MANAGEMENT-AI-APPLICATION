@@ -10,6 +10,8 @@ const router = Router();
 router.post("/register", authRateLimiter, AuthController.register);
 router.post("/login", authRateLimiter, AuthController.login);
 router.post("/refresh", authRateLimiter, AuthController.refresh);
+router.post("/forgot-password", authRateLimiter, AuthController.forgotPassword);
+router.post("/reset-password", authRateLimiter, AuthController.resetPassword);
 
 // Protected routes
 router.get("/me", authenticate, AuthController.me);

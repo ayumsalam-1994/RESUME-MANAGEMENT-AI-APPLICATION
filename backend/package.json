@@ -24,6 +24,7 @@
     "openai": "^4.104.0",
     "pdfkit": "^0.17.2",
     "prisma": "^6.19.3",
+    "resend": "^6.16.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
