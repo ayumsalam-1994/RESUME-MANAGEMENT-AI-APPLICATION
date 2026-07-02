@@ -29,6 +29,7 @@ model User {
   resumes             Resume[]
   certifications      Certification[]
   passwordResetTokens PasswordResetToken[]
+  subscriptions       Subscription[]
 
   @@index([email])
 }
@@ -45,6 +46,27 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// Subscriptions
+model Subscription {
+  id               Int       @id @default(autoincrement())
+  userId           Int
+  status           String    @default("pending") // pending, active, expired, cancelled
+  amount           Decimal   @db.Decimal(10, 2)
+  currency         String    @default("MYR")
+  provider         String    @default("toyyibpay")
+  providerBillCode String?
+  startsAt         DateTime?
+  expiresAt        DateTime?
+  aiGenerations    Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status, expiresAt])
 }
 
 // User Profile

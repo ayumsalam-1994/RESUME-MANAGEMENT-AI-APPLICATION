@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { adminGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -62,6 +63,38 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/job-application/job-application.component').then((m) => m.JobApplicationComponent),
     canActivate: [authGuard]
+  },
+  {
+    path: 'pricing',
+    loadComponent: () =>
+      import('./features/pricing/pricing.component').then((m) => m.PricingComponent)
+  },
+  {
+    path: 'payment/return',
+    loadComponent: () =>
+      import('./features/payment/payment-return.component').then((m) => m.PaymentReturnComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'admin',
+    loadComponent: () =>
+      import('./features/admin/admin.component').then((m) => m.AdminComponent),
+    canActivate: [authGuard, adminGuard]
+  },
+  {
+    path: 'terms',
+    loadComponent: () =>
+      import('./features/legal/terms.component').then((m) => m.TermsComponent)
+  },
+  {
+    path: 'privacy',
+    loadComponent: () =>
+      import('./features/legal/privacy.component').then((m) => m.PrivacyComponent)
+  },
+  {
+    path: 'refund',
+    loadComponent: () =>
+      import('./features/legal/refund.component').then((m) => m.RefundComponent)
   },
   {
     path: '**',

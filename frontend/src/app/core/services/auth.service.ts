@@ -10,6 +10,16 @@ import type {
   RegisterRequest,
   User
 } from '../models/auth.model';
+import { UserRole } from '../models/auth.model';
+
+export interface SubscriptionStatus {
+  isActive: boolean;
+  expiresAt?: string;
+  aiGenerations?: number;
+  aiQuota?: number;
+  pending?: boolean;
+  pendingBillCode?: string | null;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -17,6 +27,7 @@ import type {
 export class AuthService {
   private http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/auth`;
+  private readonly paymentsUrl = `${environment.apiUrl}/payments`;
   private readonly ACCESS_TOKEN_KEY = 'access_token';
   private readonly REFRESH_TOKEN_KEY = 'refresh_token';
 
@@ -95,6 +106,38 @@ export class AuthService {
         this.setAccessToken(response.accessToken);
       })
     );
+  }
+
+  /**
+   * Decode the JWT payload to read the role without a server round-trip.
+   * No signature verification — validation happens server-side on every API call.
+   */
+  getUserRole(): UserRole | null {
+    const token = this.getAccessToken();
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.role as UserRole;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Initiate a ToyyibPay subscription — returns a redirect URL
+   */
+  subscribe(name: string): Observable<{ redirectUrl: string; subscriptionId: number }> {
+    return this.http.post<{ redirectUrl: string; subscriptionId: number }>(
+      `${this.paymentsUrl}/subscribe`,
+      { name }
+    );
+  }
+
+  /**
+   * Get the current user's subscription status
+   */
+  getSubscriptionStatus(): Observable<SubscriptionStatus> {
+    return this.http.get<SubscriptionStatus>(`${this.paymentsUrl}/status`);
   }
 
   /**

@@ -3,6 +3,25 @@ import { prisma } from "../db/prisma";
 import { config } from "../config";
 import PDFDocument from "pdfkit";
 
+async function getActiveSubscription(userId: number) {
+  return prisma.subscription.findFirst({
+    where: { userId, status: "active", expiresAt: { gt: new Date() } }
+  });
+}
+
+async function checkAndIncrementAiQuota(userId: number) {
+  const subscription = await getActiveSubscription(userId);
+  if (!subscription) {
+    throw new Error("SUBSCRIPTION_REQUIRED");
+  }
+  if (subscription.aiGenerations >= config.aiMonthlyQuota) {
+    throw new Error(
+      `Monthly AI limit of ${config.aiMonthlyQuota} generations reached for this billing period.`
+    );
+  }
+  return subscription;
+}
+
 export class ResumeService {
   private genAI?: GoogleGenerativeAI;
   private model?: any;
@@ -49,16 +68,19 @@ export class ResumeService {
     // Rate limiting check
     const now = Date.now();
     const lastGeneration = this.lastGenerationTime.get(userId);
-    
+
     if (lastGeneration) {
       const timeSinceLastGeneration = now - lastGeneration;
       const remainingTime = this.RATE_LIMIT_MS - timeSinceLastGeneration;
-      
+
       if (remainingTime > 0) {
         const secondsRemaining = Math.ceil(remainingTime / 1000);
         throw new Error(`Rate limit exceeded. Please wait ${secondsRemaining} seconds before generating another resume.`);
       }
     }
+
+    // Subscription + monthly quota check
+    const activeSubscription = await checkAndIncrementAiQuota(userId);
 
     // Gather user data
     const [user, profile, experiences, projects, application, userSkills] = await Promise.all([
@@ -238,8 +260,12 @@ export class ResumeService {
         }
       });
 
-      // Update last generation timestamp after successful creation
+      // Update last generation timestamp and billing-period quota counter
       this.lastGenerationTime.set(userId, Date.now());
+      await prisma.subscription.update({
+        where: { id: activeSubscription.id },
+        data: { aiGenerations: { increment: 1 } }
+      });
 
       return resume;
     } catch (err: any) {
@@ -460,16 +486,19 @@ export class ResumeService {
     // Rate limiting check
     const now = Date.now();
     const lastAnalysis = this.lastAnalysisTime.get(userId);
-    
+
     if (lastAnalysis) {
       const timeSinceLastAnalysis = now - lastAnalysis;
       const remainingTime = this.RATE_LIMIT_MS - timeSinceLastAnalysis;
-      
+
       if (remainingTime > 0) {
         const secondsRemaining = Math.ceil(remainingTime / 1000);
         throw new Error(`Rate limit exceeded. Please wait ${secondsRemaining} seconds before analyzing another resume.`);
       }
     }
+
+    // Subscription + monthly quota check
+    const activeSubscription = await checkAndIncrementAiQuota(userId);
 
     const [application, resume] = await Promise.all([
       prisma.jobApplication.findFirst({ where: { id: applicationId, userId } }),
@@ -528,8 +557,12 @@ export class ResumeService {
         select: { id: true, matchScore: true, scoreBreakdown: true, suggestions: true, updatedAt: true }
       });
 
-      // Update last analysis timestamp after successful completion
+      // Update last analysis timestamp and billing-period quota counter
       this.lastAnalysisTime.set(userId, Date.now());
+      await prisma.subscription.update({
+        where: { id: activeSubscription.id },
+        data: { aiGenerations: { increment: 1 } }
+      });
 
       return updated;
     } catch (err: any) {

@@ -27,5 +27,11 @@ export const config = {
   jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || "15m",
   jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || "30d",
   resendApiKey: process.env.RESEND_API_KEY as string | undefined,
-  emailFrom: process.env.EMAIL_FROM || "RoleFit <onboarding@resend.dev>"
+  emailFrom: process.env.EMAIL_FROM || "RoleFit <onboarding@resend.dev>",
+  toyyibpayUserSecretKey: process.env.TOYYIBPAY_USER_SECRET_KEY as string | undefined,
+  toyyibpayCategoryCode: process.env.TOYYIBPAY_CATEGORY_CODE as string | undefined,
+  toyyibpayBaseUrl: process.env.TOYYIBPAY_BASE_URL || "https://toyyibpay.com",
+  toyyibpayCallbackUrl: process.env.TOYYIBPAY_CALLBACK_URL as string | undefined,
+  subscriptionPriceRM: Number(process.env.SUBSCRIPTION_PRICE_RM) || 29,
+  aiMonthlyQuota: Number(process.env.AI_MONTHLY_QUOTA) || 30
 };

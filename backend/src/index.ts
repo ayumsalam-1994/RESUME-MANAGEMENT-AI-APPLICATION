@@ -13,6 +13,8 @@ import projectRoutes from "./routes/project.routes.js";
 import companyRoutes from "./routes/company.routes.js";
 import jobApplicationRoutes from "./routes/jobApplication.routes.js";
 import certificationRoutes from "./routes/certification.routes.js";
+import paymentRoutes from "./routes/payment.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 
 // Validate environment variables on startup
 validateEnv();
@@ -43,6 +45,8 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/job-applications", jobApplicationRoutes);
 app.use("/api/certifications", certificationRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

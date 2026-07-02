@@ -3,17 +3,6 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-interface RequiredEnvVars {
-  DATABASE_URL: string;
-  JWT_SECRET: string;
-  GEMINI_API_KEY: string;
-  PORT?: string;
-  NODE_ENV?: string;
-  FRONTEND_ORIGIN?: string;
-  JWT_ACCESS_EXPIRES?: string;
-  JWT_REFRESH_EXPIRES?: string;
-}
-
 const requiredVars = [
   'DATABASE_URL',
   'JWT_SECRET',
@@ -50,6 +39,14 @@ export function validateEnv(): void {
 
   if (!process.env.RESEND_API_KEY) {
     warnings.push('RESEND_API_KEY not set - password reset and other transactional emails will not send');
+  }
+
+  if (!process.env.TOYYIBPAY_USER_SECRET_KEY) {
+    warnings.push('TOYYIBPAY_USER_SECRET_KEY not set - payment/subscription flow will not work');
+  }
+
+  if (!process.env.TOYYIBPAY_CATEGORY_CODE) {
+    warnings.push('TOYYIBPAY_CATEGORY_CODE not set - payment/subscription flow will not work');
   }
 
   if (process.env.JWT_SECRET && process.env.JWT_SECRET === 'change-me') {

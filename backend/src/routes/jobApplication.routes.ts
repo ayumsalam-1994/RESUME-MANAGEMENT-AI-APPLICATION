@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.middleware";
+import { requireActiveSubscription } from "../middleware/subscription.middleware";
 import {
   createJobApplication,
   deleteJobApplication,
@@ -19,12 +20,13 @@ router.post("/", createJobApplication);
 router.put("/:applicationId", updateJobApplication);
 router.delete("/:applicationId", deleteJobApplication);
 // Resume generation and listing for an application
-router.post("/:applicationId/resumes/generate", generateResume);
+// generate, analyze, export require an active subscription
+router.post("/:applicationId/resumes/generate", requireActiveSubscription, generateResume);
 router.post("/:applicationId/resumes/import", importResume);
 router.get("/:applicationId/resumes", listResumes);
 router.get("/:applicationId/resumes/:resumeId", getResume);
 router.delete("/:applicationId/resumes/:resumeId", deleteResume);
-router.get("/:applicationId/resumes/:resumeId/export", exportResumePDF);
-router.post("/:applicationId/resumes/:resumeId/analyze", analyzeResume);
+router.get("/:applicationId/resumes/:resumeId/export", requireActiveSubscription, exportResumePDF);
+router.post("/:applicationId/resumes/:resumeId/analyze", requireActiveSubscription, analyzeResume);
 
 export default router;
