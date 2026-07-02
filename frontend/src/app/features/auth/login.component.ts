@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
@@ -189,6 +189,7 @@ export class LoginComponent {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   isLoading = signal(false);
   errorMessage = signal('');
@@ -207,7 +208,8 @@ export class LoginComponent {
     this.authService.login(this.loginForm.getRawValue()).subscribe({
       next: () => {
         this.isLoading.set(false);
-        this.router.navigate(['/dashboard']);
+        const redirect = this.route.snapshot.queryParamMap.get('redirect');
+        this.router.navigate([redirect === 'onboarding' ? '/onboarding' : '/dashboard']);
       },
       error: (error) => {
         this.isLoading.set(false);

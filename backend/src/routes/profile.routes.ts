@@ -1,3 +1,4 @@
+import multer from 'multer';
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import {
@@ -15,11 +16,31 @@ import {
   getCustomPrompt,
   saveCustomPrompt,
 } from '../controllers/profile.controller';
+import { parseResume } from '../controllers/resumeParser.controller';
+
+const resumeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF and DOCX files are supported.'));
+    }
+  }
+});
 
 const router = Router();
 
 // All profile routes require authentication
 router.use(authenticate);
+
+// Resume parse → auto-populate profile (onboarding)
+router.post('/parse-resume', resumeUpload.single('resume'), parseResume);
 
 // Profile routes
 router.get('/', getProfile);

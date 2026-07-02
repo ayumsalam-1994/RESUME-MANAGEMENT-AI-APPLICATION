@@ -232,10 +232,10 @@ export class RegisterComponent {
     this.authService.register(this.registerForm.getRawValue()).subscribe({
       next: () => {
         this.isLoading.set(false);
-        this.successMessage.set('Registration successful! Redirecting to login...');
+        this.successMessage.set('Account created! Please log in to set up your profile.');
         setTimeout(() => {
-          this.router.navigate(['/login']);
-        }, 2000);
+          this.router.navigate(['/login'], { queryParams: { redirect: 'onboarding' } });
+        }, 1500);
       },
       error: (error) => {
         this.isLoading.set(false);
