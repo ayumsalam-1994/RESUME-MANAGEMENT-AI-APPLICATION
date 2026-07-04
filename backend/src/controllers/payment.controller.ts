@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { PaymentService } from "../services/payment.service.js";
+import { PaymentService, type SubscriptionPlan } from "../services/payment.service.js";
 import { AdminService } from "../services/admin.service.js";
 import { config } from "../config.js";
 import type { AuthRequest } from "../types/auth.js";
@@ -9,8 +9,9 @@ export class PaymentController {
     try {
       const { userId, email } = (req as unknown as AuthRequest).user!;
       const name: string = req.body.name || email;
+      const plan: SubscriptionPlan = req.body.plan === "weekly" ? "weekly" : "monthly";
 
-      const result = await PaymentService.createBill(userId, email, name);
+      const result = await PaymentService.createBill(userId, email, name, plan);
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to initiate payment" });

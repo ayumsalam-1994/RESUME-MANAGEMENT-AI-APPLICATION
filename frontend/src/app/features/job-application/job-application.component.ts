@@ -1,43 +1,47 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import {
+  DragDropModule,
+  CdkDragDrop,
+  moveItemInArray,
+  transferArrayItem
+} from '@angular/cdk/drag-drop';
 
 import {
   JobApplication,
   JobApplicationService
 } from '../../core/services/jobApplication.service';
 import { Company, CompanyService } from '../../core/services/company.service';
-import { ProfileService } from '../../core/services/profile.service';
-import { ExperienceService } from '../../core/services/experience.service';
-import { ProjectService } from '../../core/services/project.service';
+
+interface StatusColumn {
+  key: string;
+  label: string;
+  color: string;
+}
+
+const STATUS_COLUMNS: StatusColumn[] = [
+  { key: 'draft', label: 'Draft', color: '#6c757d' },
+  { key: 'applied', label: 'Applied', color: '#007bff' },
+  { key: 'interviewing', label: 'Interviewing', color: '#ffc107' },
+  { key: 'offer', label: 'Offer', color: '#28a745' },
+  { key: 'rejected', label: 'Rejected', color: '#dc3545' },
+  { key: 'withdrawn', label: 'Withdrawn', color: '#6c757d' }
+];
 
 @Component({
   selector: 'app-job-applications',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, DragDropModule],
   template: `
-    <div class="container">
-      <div class="header">
+    <div class="board-page">
+      <div class="page-header">
         <div>
           <h2>Job Applications</h2>
-          <p class="subtext">Track your job search targets and applications</p>
+          <p class="subtext">Drag a card between columns to update its status</p>
         </div>
-        <div class="header-actions">
-          @if (!editingId && !isAddingNew) {
-            <button class="primary" (click)="startAddApplication()">+ Add Job Target</button>
-          }
-          <div class="filters">
-            <select [(ngModel)]="selectedStatus" (change)="filterByStatus()">
-              <option value="">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="applied">Applied</option>
-              <option value="interviewing">Interviewing</option>
-              <option value="offer">Offer</option>
-              <option value="rejected">Rejected</option>
-              <option value="withdrawn">Withdrawn</option>
-            </select>
-          </div>
-        </div>
+        <button class="primary" (click)="startAddApplication()">+ Add Job Target</button>
       </div>
 
       @if (applicationService.errorSignal()) {
@@ -47,284 +51,95 @@ import { ProjectService } from '../../core/services/project.service';
         </div>
       }
 
-      @if (applicationService.loadingSignal()) {
+      @if (applicationService.loadingSignal() && !isBoardPopulated()) {
         <p class="loading">Loading applications...</p>
       }
 
-      @if (analysisToast) {
-        <div class="toast toast-success">{{ analysisToast }}</div>
-      }
-
-      <div class="application-list">
-        @for (app of applicationService.applicationsSignal(); track app.id) {
-          <div class="application-card" [attr.data-status]="app.status">
-            @if (editingId === app.id) {
-              <!-- Edit Form -->
-              <form [formGroup]="applicationForm" (ngSubmit)="saveApplication(app.id)">
-                <div class="form-group">
-                  <label>Company</label>
-                  <select formControlName="companyId">
-                    <option value="">Select company...</option>
-                    @for (company of companyService.companiesSignal(); track company.id) {
-                      <option [value]="company.id">{{ company.name }}</option>
-                    }
-                  </select>
-                  <button type="button" class="link-btn" (click)="showCompanyForm = !showCompanyForm">
-                    + Add New Company
-                  </button>
-                </div>
-
-                @if (showCompanyForm) {
-                  <div class="company-form">
-                    <input [(ngModel)]="newCompanyName" [ngModelOptions]="{standalone: true}" placeholder="Company name" />
-                    <button type="button" class="small" (click)="addCompany()">Add</button>
-                    <button type="button" class="small ghost" (click)="showCompanyForm = false">Cancel</button>
-                  </div>
-                }
-
-                <div class="form-group">
-                  <label>Job Title</label>
-                  <input formControlName="jobTitle" type="text" />
-                </div>
-
-                <div class="form-group">
-                  <label>Job Description</label>
-                  <textarea formControlName="jobDescription" rows="6"></textarea>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>Platform</label>
-                    <input formControlName="platform" type="text" placeholder="LinkedIn, Indeed..." />
-                  </div>
-                  <div class="form-group">
-                    <label>Application URL</label>
-                    <input formControlName="applicationUrl" type="url" />
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>Contact Person</label>
-                    <input formControlName="contactPerson" type="text" />
-                  </div>
-                  <div class="form-group">
-                    <label>Date Applied</label>
-                    <input formControlName="dateApplied" type="date" />
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>Status</label>
-                    <select formControlName="status">
-                      <option value="draft">Draft</option>
-                      <option value="applied">Applied</option>
-                      <option value="interviewing">Interviewing</option>
-                      <option value="offer">Offer</option>
-                      <option value="rejected">Rejected</option>
-                      <option value="withdrawn">Withdrawn</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label>Notes</label>
-                  <textarea formControlName="notes" rows="3"></textarea>
-                </div>
-
-                <div class="actions">
-                  <button type="submit" class="primary">Save</button>
-                  <button type="button" (click)="cancelEdit()">Cancel</button>
-                </div>
-              </form>
-            } @else {
-              <!-- Display Card -->
-              <div class="card-header">
-                <div>
-                  <h3>{{ app.jobTitle }}</h3>
-                  <p class="company">{{ app.company?.name || 'Unknown Company' }}</p>
-                  @if (app.dateApplied) {
-                    <p class="date-applied">Applied: {{ app.dateApplied | date: 'MMM dd, yyyy' }}</p>
-                  }
-                </div>
-                <span class="status-badge" [attr.data-status]="app.status">{{ app.status }}</span>
-              </div>
-
-              <div class="actions">
-                <button class="secondary" (click)="startEdit(app)">Edit</button>
-                <button class="danger" (click)="deleteApplicationItem(app.id)">Delete</button>
-                <button class="ghost" (click)="toggleResumes(app.id)">
-                  @if (resumePanels[app.id]) { Hide Resumes } @else { Show Resumes }
-                </button>
-              </div>
-
-              @if (generatingResume[app.id]) {
-                <div class="loading-message">
-                  <span class="spinner">⏳</span> AI is generating your resume... This may take 10-30 seconds.
-                </div>
-              }
-
-              @if (resumePanels[app.id]) {
-                <div class="resume-panel">
-                  <div class="resume-actions">
-                    <button class="small" (click)="refreshResumes(app.id)">Refresh</button>
-                    <button class="small primary" (click)="copyPrompt(app)">Copy Prompt</button>
-                    <button class="small" (click)="togglePromptEditor()">Customize Prompt</button>
-                    <button class="small secondary" (click)="startImport(app.id)">Import Resume</button>
-                    <select class="small-select" [(ngModel)]="selectedModel" [disabled]="generatingResume[app.id]">
-                      @for (m of models; track m) {
-                        <option [value]="m">{{ m }}</option>
-                      }
-                    </select>
-                    <button class="small primary" (click)="generateResume(app.id)" [disabled]="generatingResume[app.id]">
-                      @if (generatingResume[app.id]) { Generating... } @else { Generate AI }
-                    </button>
-                    <button class="small ghost" (click)="toggleRaw(app.id)">
-                      @if (rawPanels[app.id]) { Hide Raw } @else { Show Raw }
-                    </button>
-                  </div>
-                  @if (showPromptEditor) {
-                    <div class="prompt-editor">
-                      <h4>Custom Prompt Instructions</h4>
-                      <p class="muted">Override the default instructions that follow the job and profile data. Leave empty to use defaults.</p>
-                      <textarea [(ngModel)]="promptDraft" rows="6" placeholder="Write your custom instructions or schema overrides..."></textarea>
-                      <div class="prompt-actions">
-                        <button class="primary small" (click)="saveCustomPrompt()">Save</button>
-                        <button class="ghost small" (click)="resetCustomPrompt()">Reset to default</button>
-                      </div>
-                    </div>
-                  }
-                  @if (importingTo === app.id) {
-                    <div class="import-panel">
-                      <h4>Paste Resume JSON</h4>
-                      <textarea
-                        [(ngModel)]="importContent"
-                        placeholder="Paste the JSON from ChatGPT here..."
-                        rows="8"
-                      ></textarea>
-                      <div class="import-actions">
-                        <button class="primary small" (click)="submitImport(app.id)">Import</button>
-                        <button class="ghost small" (click)="cancelImport()">Cancel</button>
-                      </div>
-                    </div>
-                  }
-                  @if (resumesByApp[app.id]?.length) {
-                    <div class="resume-list">
-                      @for (resume of resumesByApp[app.id]; track resume.id) {
-                        <div class="resume-item">
-                          @if (resume.parsed?.meta?.generator === 'fallback') {
-                            <span class="badge fallback">Fallback</span>
-                          }
-                          <div class="resume-meta">
-                            <strong>Version {{ resume.version }}</strong>
-                            <span>• {{ resume.createdAt | date: 'MMM dd, yyyy HH:mm' }}</span>
-                            <button class="success tiny" (click)="exportResumePDF(app.id, resume.id)">Export PDF</button>
-                            <button class="primary tiny" [disabled]="analyzingResume[app.id]" (click)="analyzeResume(app.id, resume.id)">
-                              @if (analyzingResume[app.id]) { Analyzing... } @else { Analyze Fit }
-                            </button>
-                            <button class="danger tiny" (click)="deleteResumeVersion(app.id, resume.id)">Delete</button>
-                          </div>
-                          @if (!rawPanels[app.id]) {
-                            @if (resume.parsed?.summary) {
-                              <p class="summary">{{ resume.parsed.summary }}</p>
-                            }
-                            @if (resume.parsed?.skills?.length) {
-                              <div class="chips">
-                                @for (skill of resume.parsed.skills; track skill) {
-                                  <span class="chip">{{ skill }}</span>
-                                }
-                              </div>
-                            }
-                            @if (resume.parsed?.experience?.length) {
-                              <div class="section">
-                                <h5>Experience</h5>
-                                @for (exp of resume.parsed.experience; track exp.company + exp.role + exp.start) {
-                                  <div class="exp-item">
-                                    <div class="exp-header">
-                                      <strong>{{ exp.role }}</strong>
-                                      <span class="company">@ {{ exp.company }}</span>
-                                      <span class="dates">• {{ exp.start }} - {{ exp.end || 'Present' }}</span>
-                                    </div>
-                                    @if (exp.bullets?.length) {
-                                      <ul class="bullets">
-                                        @for (b of exp.bullets; track b) { <li>{{ b }}</li> }
-                                      </ul>
-                                    }
-                                  </div>
-                                }
-                              </div>
-                            }
-                            @if (resume.parsed?.projects?.length) {
-                              <div class="section">
-                                <h5>Projects</h5>
-                                @for (proj of resume.parsed.projects; track proj.title) {
-                                  <div class="proj-item">
-                                    <strong>{{ proj.title }}</strong>
-                                    @if (proj.description) { <p>{{ proj.description }}</p> }
-                                    @if (proj.tech?.length) {
-                                      <div class="chips">
-                                        @for (t of proj.tech; track t) { <span class="chip alt">{{ t }}</span> }
-                                      </div>
-                                    }
-                                  </div>
-                                }
-                              </div>
-                            }
-                          } @else {
-                            <pre class="resume-content">{{ resume.content | json }}</pre>
-                          }
-
-                          @if (resume.analysis?.matchScore !== null || resume.analysis?.suggestions) {
-                            <div
-                              class="analysis"
-                              [attr.id]="'analysis-' + app.id + '-' + resume.id"
-                              [class.highlight]="highlightedAnalysisId === app.id + '-' + resume.id"
-                            >
-                              <div class="analysis-header">
-                                <strong>Fit Analysis</strong>
-                                @if (resume.analysis?.matchScore !== null) {
-                                  <span class="score-badge">{{ resume.analysis.matchScore }}%</span>
-                                }
-                              </div>
-                              @if (resume.analysis?.scoreBreakdown) {
-                                <div class="breakdown">
-                                  @if (resume.analysis.scoreBreakdown.skills !== undefined) {
-                                    <span>Skills: {{ resume.analysis.scoreBreakdown.skills }}%</span>
-                                  }
-                                  @if (resume.analysis.scoreBreakdown.experience !== undefined) {
-                                    <span>Experience: {{ resume.analysis.scoreBreakdown.experience }}%</span>
-                                  }
-                                  @if (resume.analysis.scoreBreakdown.projects !== undefined) {
-                                    <span>Projects: {{ resume.analysis.scoreBreakdown.projects }}%</span>
-                                  }
-                                  @if (resume.analysis.scoreBreakdown.summary !== undefined) {
-                                    <span>Summary: {{ resume.analysis.scoreBreakdown.summary }}%</span>
-                                  }
-                                </div>
-                              }
-                              @if (resume.analysis?.suggestions) {
-                                <div class="suggestions">{{ resume.analysis.suggestions }}</div>
-                              }
-                            </div>
-                          }
-                        </div>
-                      }
-                    </div>
-                  } @else {
-                    <p class="muted">No resumes yet. Generate one above.</p>
-                  }
-                </div>
-              }
-            }
-          </div>
+      <!-- Mobile column-jump tabs -->
+      <div class="column-tabs">
+        @for (col of statusColumns; track col.key) {
+          <button
+            class="column-tab"
+            [style.borderColor]="col.color"
+            (click)="scrollToColumn(col.key)"
+          >
+            {{ col.label }}
+            <span class="count">{{ columns[col.key]?.length || 0 }}</span>
+          </button>
         }
       </div>
 
-      @if (isAddingNew) {
-        <div class="application-card add-form">
-          <h3>Add Job Target</h3>
-          <form [formGroup]="applicationForm" (ngSubmit)="addApplication()">
+      <div class="board" cdkDropListGroup>
+        @for (col of statusColumns; track col.key) {
+          <div class="kanban-column" [id]="'column-' + col.key">
+            <div class="column-header" [style.borderTopColor]="col.color">
+              <span>{{ col.label }}</span>
+              <span class="count">{{ columns[col.key]?.length || 0 }}</span>
+            </div>
+
+            <div
+              class="column-body"
+              cdkDropList
+              [id]="'col-' + col.key"
+              [cdkDropListData]="columns[col.key]"
+              [cdkDropListConnectedTo]="connectedDropLists"
+              (cdkDropListDropped)="drop($event, col.key)"
+            >
+              @for (app of columns[col.key]; track app.id) {
+                <div
+                  class="kanban-card"
+                  cdkDrag
+                  [cdkDragData]="app"
+                  [class.moving]="movingId === app.id"
+                  [style.borderLeftColor]="col.color"
+                >
+                  <div class="card-top">
+                    <h4>{{ app.jobTitle }}</h4>
+                    <button class="menu-btn" (click)="toggleMenu(app.id)">⋮</button>
+                  </div>
+                  <p class="company">{{ app.company?.name || 'Unknown Company' }}</p>
+                  @if (app.dateApplied) {
+                    <p class="meta">Applied {{ app.dateApplied | date: 'MMM dd, yyyy' }}</p>
+                  }
+                  @if (app.platform) {
+                    <p class="meta">{{ app.platform }}</p>
+                  }
+
+                  @if (openMenuId === app.id) {
+                    <div class="card-menu">
+                      <button (click)="startEdit(app)">Edit</button>
+                      <button class="danger" (click)="deleteApplicationItem(app.id)">Delete</button>
+                    </div>
+                  }
+
+                  <div class="card-actions">
+                    <select
+                      class="move-select"
+                      (click)="$event.stopPropagation()"
+                      (change)="onMoveSelect(app, $event)"
+                    >
+                      @for (opt of statusColumns; track opt.key) {
+                        <option [value]="opt.key" [selected]="opt.key === app.status">Move to: {{ opt.label }}</option>
+                      }
+                    </select>
+                    <button class="tailor-btn" (click)="goToWorkspace(app.id)">Tailor →</button>
+                  </div>
+                </div>
+              }
+              @if (!columns[col.key]?.length) {
+                <p class="empty-hint">No applications</p>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    @if (isAddingNew || editingApp) {
+      <div class="modal-backdrop" (click)="cancelEdit()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <h3>{{ editingApp ? 'Edit Job Target' : 'Add Job Target' }}</h3>
+          <form [formGroup]="applicationForm" (ngSubmit)="editingApp ? saveApplication(editingApp.id) : addApplication()">
             <div class="form-group">
               <label>Company</label>
               <select formControlName="companyId">
@@ -382,12 +197,9 @@ import { ProjectService } from '../../core/services/project.service';
               <div class="form-group">
                 <label>Status</label>
                 <select formControlName="status">
-                  <option value="draft">Draft</option>
-                  <option value="applied">Applied</option>
-                  <option value="interviewing">Interviewing</option>
-                  <option value="offer">Offer</option>
-                  <option value="rejected">Rejected</option>
-                  <option value="withdrawn">Withdrawn</option>
+                  @for (col of statusColumns; track col.key) {
+                    <option [value]="col.key">{{ col.label }}</option>
+                  }
                 </select>
               </div>
             </div>
@@ -398,47 +210,32 @@ import { ProjectService } from '../../core/services/project.service';
             </div>
 
             <div class="actions">
-              <button type="submit" class="primary">Add</button>
+              <button type="submit" class="primary">{{ editingApp ? 'Save' : 'Add' }}</button>
               <button type="button" (click)="cancelEdit()">Cancel</button>
             </div>
           </form>
         </div>
-      }
-    </div>
+      </div>
+    }
   `,
   styles: `
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
+    .board-page {
+      max-width: 100%;
       padding: 20px;
-      overflow: visible;
     }
 
-    .header {
+    .page-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
-      position: static;
-      padding: 0;
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      margin-bottom: 12px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
     .subtext {
       margin: 4px 0 0;
       color: #666;
-    }
-
-    .filters select {
-      padding: 8px 12px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 14px;
     }
 
     .error-message {
@@ -462,145 +259,235 @@ import { ProjectService } from '../../core/services/project.service';
       color: #666;
     }
 
-    .loading-message {
-      margin-top: 12px;
-      padding: 12px;
-      background: #e3f2fd;
-      border: 1px solid #2196f3;
+    button {
+      padding: 8px 14px;
+      background: #007bff;
+      color: white;
+      border: none;
       border-radius: 4px;
-      color: #1976d2;
+      cursor: pointer;
       font-size: 14px;
+
+      &.primary { background: #667eea; }
+      &.ghost { background: #f1f3f5; color: #333; border: 1px solid #ddd; }
+      &.danger { background: #dc3545; }
+      &.small { padding: 6px 10px; font-size: 13px; }
+      &.link-btn { background: none; color: #667eea; padding: 4px 0; text-decoration: underline; font-size: 13px; }
+    }
+
+    /* Mobile column-jump tabs */
+    .column-tabs {
+      display: none;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+
+    .column-tab {
+      flex: 0 0 auto;
+      background: white;
+      color: #333;
+      border: 2px solid #ddd;
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 13px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+
+      .count {
+        background: #f1f3f5;
+        border-radius: 10px;
+        padding: 1px 7px;
+        font-size: 11px;
+      }
     }
 
-    .spinner {
-      font-size: 18px;
-      animation: spin 2s linear infinite;
+    .board {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding-bottom: 12px;
+      align-items: flex-start;
     }
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .application-list {
-      display: grid;
-      gap: 16px;
-      margin-bottom: 24px;
-      overflow: visible;
-    }
-
-    .application-card {
-      background: white;
-      border: 1px solid #ddd;
+    .kanban-column {
+      flex: 0 0 300px;
+      background: #f4f5f7;
       border-radius: 8px;
-      padding: 16px;
-      border-left: 4px solid #6c757d;
-
-      &[data-status="draft"] { border-left-color: #6c757d; }
-      &[data-status="applied"] { border-left-color: #007bff; }
-      &[data-status="interviewing"] { border-left-color: #ffc107; }
-      &[data-status="offer"] { border-left-color: #28a745; }
-      &[data-status="rejected"] { border-left-color: #dc3545; }
-      &[data-status="withdrawn"] { border-left-color: #6c757d; }
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 220px);
+      scroll-snap-align: start;
     }
 
-    .card-header {
+    .column-header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 12px;
-    }
-
-    h3 {
-      margin: 0 0 6px;
-    }
-
-    .company {
-      margin: 0 0 4px;
-      color: #555;
+      align-items: center;
+      padding: 10px 12px;
       font-weight: 600;
+      border-top: 4px solid #ccc;
+      border-radius: 8px 8px 0 0;
+      background: white;
+
+      .count {
+        background: #f1f3f5;
+        border-radius: 10px;
+        padding: 1px 8px;
+        font-size: 12px;
+        color: #555;
+      }
     }
 
-    .date-applied {
-      margin: 0;
+    .column-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .empty-hint {
+      text-align: center;
       color: #999;
       font-size: 13px;
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      color: white;
-      margin-top: 8px;
-
-      &[data-status="draft"] { background: #6c757d; }
-      &[data-status="applied"] { background: #007bff; }
-      &[data-status="interviewing"] { background: #ffc107; color: #333; }
-      &[data-status="offer"] { background: #28a745; }
-      &[data-status="rejected"] { background: #dc3545; }
-      &[data-status="withdrawn"] { background: #6c757d; }
-    }
-
-    .job-info {
       margin: 12px 0;
-      padding: 12px;
-      background: #f8f9fa;
+    }
+
+    .kanban-card {
+      background: white;
       border-radius: 6px;
+      border-left: 4px solid #ccc;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      padding: 10px 12px;
+      cursor: grab;
+      position: relative;
 
-      p {
-        margin: 6px 0;
-        font-size: 14px;
+      &.moving { opacity: 0.6; }
+
+      .card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 6px;
       }
-
-      a {
-        color: #007bff;
-        text-decoration: none;
-
-        &:hover {
-          text-decoration: underline;
-        }
-      }
-    }
-
-    .description, .notes {
-      margin: 12px 0;
 
       h4 {
-        margin: 0 0 8px;
-        font-size: 14px;
-        color: #333;
-      }
-
-      p {
         margin: 0;
+        font-size: 14px;
+      }
+
+      .menu-btn {
+        background: none;
+        color: #666;
+        padding: 0 4px;
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      .company {
+        margin: 4px 0 0;
         color: #555;
-        line-height: 1.6;
-        white-space: pre-wrap;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .meta {
+        margin: 2px 0 0;
+        color: #888;
+        font-size: 12px;
+      }
+
+      .card-menu {
+        position: absolute;
+        right: 8px;
+        top: 30px;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        display: flex;
+        flex-direction: column;
+        z-index: 5;
+
+        button {
+          background: none;
+          color: #333;
+          text-align: left;
+          border-radius: 0;
+          padding: 8px 14px;
+          font-size: 13px;
+
+          &.danger { color: #dc3545; }
+          &:hover { background: #f5f5f5; }
+        }
+      }
+
+      .card-actions {
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .move-select {
+        width: 100%;
+        padding: 5px 6px;
+        font-size: 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        color: #333;
+        background: #fafafa;
+      }
+
+      .tailor-btn {
+        background: #667eea;
+        font-size: 12px;
+        padding: 6px 10px;
       }
     }
 
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
+    .cdk-drag-preview {
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      border-radius: 6px;
     }
 
-    .form-group {
-      margin-bottom: 12px;
+    .cdk-drag-placeholder {
+      opacity: 0.3;
     }
+
+    .cdk-drop-list-dragging .kanban-card:not(.cdk-drag-placeholder) {
+      transition: transform 200ms ease;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 16px;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 10px;
+      padding: 24px;
+      width: 100%;
+      max-width: 560px;
+
+      h3 { margin-top: 0; }
+    }
+
+    .form-group { margin-bottom: 12px; }
 
     .form-row {
       display: grid;
@@ -616,9 +503,7 @@ import { ProjectService } from '../../core/services/project.service';
       background: #f0f0f0;
       border-radius: 6px;
 
-      input {
-        flex: 1;
-      }
+      input { flex: 1; }
     }
 
     label {
@@ -636,415 +521,79 @@ import { ProjectService } from '../../core/services/project.service';
       font-family: inherit;
     }
 
-    textarea {
-      resize: vertical;
-    }
+    textarea { resize: vertical; }
 
-    button {
-      padding: 8px 14px;
-      background: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-
-      &.primary {
-        background: #007bff;
-      }
-
-      &.secondary {
-        background: #6c757d;
-      }
-
-      &.danger {
-        background: #dc3545;
-      }
-
-      &.success {
-        background: #28a745;
-      }
-
-      &.ghost {
-        background: #f1f3f5;
-        color: #333;
-        border: 1px solid #ddd;
-      }
-
-      &.small {
-        padding: 6px 10px;
-        font-size: 13px;
-      }
-
-      &.tiny {
-        padding: 2px 6px;
-        font-size: 11px;
-      }
-
-      &.link-btn {
-        background: none;
-        color: #007bff;
-        padding: 4px 0;
-        text-decoration: underline;
-        font-size: 13px;
-      }
-    }
-
-    .resume-panel {
-      margin-top: 12px;
-      padding: 12px;
-      background: #f8f9fa;
-      border-radius: 6px;
-    }
-
-    .resume-actions {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 8px;
-      gap: 6px;
-    }
-    .small-select {
-      padding: 6px 10px;
-      font-size: 13px;
-    }
-
-    .import-panel {
-      background: #f9f9f9;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      padding: 12px;
-      margin-bottom: 12px;
-
-      h4 { margin: 0 0 8px; font-size: 13px; }
-      textarea {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        font-family: monospace;
-        font-size: 12px;
-      }
-      .import-actions {
-        display: flex;
-        gap: 6px;
-        margin-top: 8px;
-      }
-    }
-
-    .resume-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    .resume-item {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      padding: 10px;
-    }
-
-    .analysis {
-      margin-top: 8px;
-      padding: 8px;
-      border: 1px solid #b6d4fe;
-      border-radius: 6px;
-      background: #f1f8ff;
-    }
-
-    .analysis.highlight {
-      border-color: #90caf9;
-      background: #e3f2fd;
-      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.15);
-      animation: pulseHighlight 1.6s ease-in-out 1;
-    }
-
-    @keyframes pulseHighlight {
-      0% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.0); }
-      30% { box-shadow: 0 0 0 6px rgba(33, 150, 243, 0.20); }
-      100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.0); }
-    }
-
-    .toast {
-      position: sticky;
-      top: 64px;
-      z-index: 20;
-      margin: 8px 0 12px;
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 600;
-      border: 1px solid transparent;
-    }
-
-    .toast-success {
-      background: #e6f4ea;
-      border-color: #a7e0b5;
-      color: #1e7e34;
-    }
-    .analysis-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .score-badge {
-      background: #e7f3ff;
-      color: #004085;
-      border: 1px solid #99caff;
-      border-radius: 12px;
-      padding: 2px 8px;
-      font-size: 12px;
-    }
-    .breakdown { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #444; margin-bottom: 6px; }
-    .suggestions { font-size: 13px; color: #333; white-space: pre-wrap; }
-
-    .badge.fallback {
-      display: inline-block;
-      padding: 2px 6px;
-      font-size: 11px;
-      border-radius: 10px;
-      background: #ffe08a;
-      color: #5c4b1b;
-      border: 1px solid #e5c970;
-      margin-bottom: 6px;
-    }
-
-    .resume-meta {
+    .actions {
       display: flex;
       gap: 8px;
-      align-items: center;
-      font-size: 13px;
-      margin-bottom: 6px;
+      margin-top: 16px;
     }
 
-    .resume-content {
-      margin: 0;
-      white-space: pre-wrap;
-      font-size: 12px;
-      background: #f6f6f6;
-      padding: 8px;
-      border-radius: 4px;
-      border: 1px solid #eee;
-    }
-
-    .summary { color: #333; margin: 4px 0 8px; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
-    .chip { background: #e7f3ff; color: #004085; border: 1px solid #99caff; border-radius: 12px; padding: 2px 8px; font-size: 12px; }
-    .chip.alt { background: #f1f3f5; color: #333; border-color: #ccc; }
-    .section { margin-top: 8px; }
-    .section h5 { margin: 0 0 6px; font-size: 13px; color: #444; }
-    .exp-item { margin-bottom: 8px; }
-    .exp-header { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
-    .exp-header .company { color: #555; }
-    .exp-header .dates { color: #777; }
-    .bullets { margin: 6px 0 0; padding-left: 18px; }
-    .proj-item { margin-bottom: 8px; }
-
-    .muted { color: #777; }
-
-    .prompt-editor {
-      margin-top: 10px;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      background: #fdfdfd;
-    }
-
-    .prompt-editor textarea {
-      width: 100%;
-      min-height: 120px;
-      padding: 8px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      font-family: inherit;
-      font-size: 14px;
-      resize: vertical;
-    }
-
-    .prompt-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    /* Mobile responsive styles */
+    /* Mobile: one column at a time, snap-scroll */
     @media (max-width: 768px) {
-      .container {
-        padding: 12px;
+      .board-page { padding: 12px; }
+
+      .column-tabs { display: flex; }
+
+      .board {
+        scroll-snap-type: x mandatory;
       }
 
-      .header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
+      .kanban-column {
+        flex: 0 0 100%;
+        max-height: none;
       }
 
-      .header-actions {
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-      }
+      input, textarea, select { font-size: 16px; }
 
-      .filters select {
-        width: 100%;
-      }
-
-      .card-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-      }
-
-      .status-badge {
-        align-self: flex-start;
-      }
-
-      .actions {
-        flex-direction: column;
-        
-        button {
-          width: 100%;
-        }
-      }
-
-      .resume-actions {
-        flex-wrap: wrap;
-        justify-content: flex-start;
-        
-        button, select {
-          font-size: 12px;
-          padding: 5px 8px;
-        }
-      }
-
-      .small-select {
-        flex: 1;
-        min-width: 120px;
-      }
-
-      .form-row {
-        grid-template-columns: 1fr;
-      }
-
-      .resume-meta {
-        flex-wrap: wrap;
-        font-size: 12px;
-      }
-
-      .exp-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-      }
-
-      .chips {
-        font-size: 11px;
-      }
-
-      .resume-content {
-        font-size: 11px;
-        overflow-x: auto;
-      }
-
-      .company-form {
-        flex-direction: column;
-      }
-
-      button {
-        min-height: 44px; /* Touch-friendly */
-      }
-
-      input, textarea, select {
-        font-size: 16px; /* Prevent zoom on iOS */
-      }
-
-      .breakdown {
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      .analysis {
-        font-size: 12px;
-      }
+      button { min-height: 40px; }
     }
-
-    @media (max-width: 480px) {
-      h2 {
-        font-size: 20px;
-      }
-
-      h3 {
-        font-size: 16px;
-      }
-
-      .subtext {
-        font-size: 13px;
-      }
-
-      .resume-actions {
-        gap: 4px;
-        
-        button, select {
-          font-size: 11px;
-          padding: 4px 6px;
-        }
-      }
-
-      .tiny {
-        padding: 3px 6px;
-        font-size: 10px;
-      }
-    }
-  `,
+  `
 })
 export class JobApplicationComponent implements OnInit {
+  statusColumns = STATUS_COLUMNS;
+  connectedDropLists = STATUS_COLUMNS.map((c) => 'col-' + c.key);
+  columns: Record<string, JobApplication[]> = {};
+
   applicationForm!: FormGroup;
   isAddingNew = false;
-  editingId: number | null = null;
-  selectedStatus = '';
+  editingApp: JobApplication | null = null;
   showCompanyForm = false;
   newCompanyName = '';
-  resumesByApp: Record<number, any[]> = {};
-  resumePanels: Record<number, boolean> = {};
-  rawPanels: Record<number, boolean> = {};
-  generatingResume: Record<number, boolean> = {};
-  analyzingResume: Record<number, boolean> = {};
-  highlightedAnalysisId: string | null = null;
-  analysisToast: string | null = null;
-  importingTo: number | null = null;
-  importContent = '';
-  showPromptEditor = false;
-  promptDraft = '';
-  customPrompt = '';
-  models = [
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-flash-tts',
-    'gemini-3-flash-preview',
-    'gemma-3-27b-it'
-  ];
-  selectedModel = 'gemini-2.5-flash';
+  openMenuId: number | null = null;
+  movingId: number | null = null;
 
   constructor(
     public applicationService: JobApplicationService,
     public companyService: CompanyService,
-    private profileService: ProfileService,
-    private experienceService: ExperienceService,
-    private projectService: ProjectService,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private router: Router
   ) {}
 
   async ngOnInit(): Promise<void> {
     this.initializeForm();
-    await this.loadCustomPrompt();
-    this.loadApplications();
-    this.loadCompanies();
+    this.resetColumns();
+    await this.loadCompanies();
+    await this.loadApplications();
   }
 
-  private async loadCustomPrompt(): Promise<void> {
-    try {
-      const savedPrompt = await this.profileService.getCustomPrompt();
-      if (savedPrompt) {
-        this.customPrompt = savedPrompt;
-        this.promptDraft = savedPrompt;
-      }
-    } catch (error) {
-      console.error('Failed to load custom prompt:', error);
+  isBoardPopulated(): boolean {
+    return Object.values(this.columns).some((c) => c.length > 0);
+  }
+
+  private resetColumns(): void {
+    const columns: Record<string, JobApplication[]> = {};
+    for (const col of this.statusColumns) {
+      columns[col.key] = [];
+    }
+    this.columns = columns;
+  }
+
+  private rebuildColumns(apps: JobApplication[]): void {
+    this.resetColumns();
+    for (const app of apps) {
+      const key = this.columns[app.status] ? app.status : 'draft';
+      this.columns[key].push(app);
     }
   }
 
@@ -1062,10 +611,10 @@ export class JobApplicationComponent implements OnInit {
     });
   }
 
-  private async loadApplications(keepFilter = true): Promise<void> {
+  private async loadApplications(): Promise<void> {
     try {
-      const status = keepFilter ? this.selectedStatus || undefined : undefined;
-      await this.applicationService.getApplications(status);
+      const apps = await this.applicationService.getApplications();
+      this.rebuildColumns(apps);
     } catch (error) {
       console.error('Failed to load applications:', error);
     }
@@ -1079,23 +628,94 @@ export class JobApplicationComponent implements OnInit {
     }
   }
 
-  async filterByStatus(): Promise<void> {
+  scrollToColumn(key: string): void {
+    document.getElementById('column-' + key)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'start'
+    });
+  }
+
+  toggleMenu(appId: number): void {
+    this.openMenuId = this.openMenuId === appId ? null : appId;
+  }
+
+  goToWorkspace(applicationId: number): void {
+    this.router.navigate(['/applications', applicationId, 'tailor']);
+  }
+
+  private async persistStatusChange(
+    app: JobApplication,
+    fromStatus: string,
+    toStatus: string,
+    revert: () => void
+  ): Promise<void> {
+    app.status = toStatus;
+    this.movingId = app.id;
     try {
-      await this.applicationService.getApplications(this.selectedStatus || undefined);
+      const updated = await this.applicationService.updateApplication(app.id, { status: toStatus });
+      Object.assign(app, updated);
     } catch (error) {
-      console.error('Failed to filter applications:', error);
+      revert();
+      app.status = fromStatus;
+      alert('Failed to update status. Please try again.');
+    } finally {
+      this.movingId = null;
     }
+  }
+
+  async drop(event: CdkDragDrop<JobApplication[]>, targetStatus: string): Promise<void> {
+    if (event.previousContainer === event.container) {
+      moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+      return;
+    }
+
+    const app = event.previousContainer.data[event.previousIndex];
+    const fromStatus = app.status;
+    const fromIndex = event.previousIndex;
+    const previousContainerData = event.previousContainer.data;
+    const containerData = event.container.data;
+
+    transferArrayItem(previousContainerData, containerData, event.previousIndex, event.currentIndex);
+
+    await this.persistStatusChange(app, fromStatus, targetStatus, () => {
+      const curIdx = containerData.indexOf(app);
+      if (curIdx !== -1) containerData.splice(curIdx, 1);
+      previousContainerData.splice(fromIndex, 0, app);
+    });
+  }
+
+  async onMoveSelect(app: JobApplication, event: Event): Promise<void> {
+    const targetStatus = (event.target as HTMLSelectElement).value;
+    if (!targetStatus || targetStatus === app.status) return;
+
+    const fromStatus = app.status;
+    const fromArr = this.columns[fromStatus] || [];
+    const fromIndex = fromArr.findIndex((a) => a.id === app.id);
+    if (fromIndex === -1) return;
+
+    fromArr.splice(fromIndex, 1);
+    this.columns[targetStatus] = this.columns[targetStatus] || [];
+    this.columns[targetStatus].unshift(app);
+
+    await this.persistStatusChange(app, fromStatus, targetStatus, () => {
+      const curIdx = this.columns[targetStatus].indexOf(app);
+      if (curIdx !== -1) this.columns[targetStatus].splice(curIdx, 1);
+      fromArr.splice(fromIndex, 0, app);
+    });
   }
 
   startAddApplication(): void {
     this.isAddingNew = true;
-    this.editingId = null;
+    this.editingApp = null;
+    this.openMenuId = null;
     this.applicationForm.reset({ status: 'draft' });
   }
 
   startEdit(app: JobApplication): void {
-    this.editingId = app.id;
+    this.editingApp = app;
     this.isAddingNew = false;
+    this.openMenuId = null;
     this.applicationForm.patchValue({
       companyId: app.companyId,
       jobTitle: app.jobTitle,
@@ -1113,25 +733,10 @@ export class JobApplicationComponent implements OnInit {
     if (!this.applicationForm.valid) return;
 
     try {
-      const formValue = this.applicationForm.value;
-      const payload: any = {
-        companyId: Number(formValue.companyId),
-        jobTitle: formValue.jobTitle,
-        jobDescription: formValue.jobDescription,
-        platform: formValue.platform || undefined,
-        applicationUrl: formValue.applicationUrl || undefined,
-        contactPerson: formValue.contactPerson || undefined,
-        dateApplied: formValue.dateApplied || undefined,
-        status: formValue.status || 'draft',
-        notes: formValue.notes || undefined
-      };
-      
-      // Remove undefined values
-      Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
-      
+      const payload = this.buildPayload();
       await this.applicationService.createApplication(payload);
+      await this.loadApplications();
       this.cancelEdit();
-      alert('Job target added successfully!');
     } catch (error: any) {
       console.error('Failed to add application:', error);
       alert(`Error adding job target: ${error?.error?.error || error.message}`);
@@ -1142,37 +747,40 @@ export class JobApplicationComponent implements OnInit {
     if (!this.applicationForm.valid) return;
 
     try {
-      const formValue = this.applicationForm.value;
-      const payload: any = {
-        companyId: Number(formValue.companyId),
-        jobTitle: formValue.jobTitle,
-        jobDescription: formValue.jobDescription,
-        platform: formValue.platform || undefined,
-        applicationUrl: formValue.applicationUrl || undefined,
-        contactPerson: formValue.contactPerson || undefined,
-        dateApplied: formValue.dateApplied || undefined,
-        status: formValue.status || 'draft',
-        notes: formValue.notes || undefined
-      };
-      
-      // Remove undefined values
-      Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
-      
+      const payload = this.buildPayload();
       await this.applicationService.updateApplication(applicationId, payload);
+      await this.loadApplications();
       this.cancelEdit();
-      alert('Application updated successfully!');
     } catch (error: any) {
       console.error('Failed to update application:', error);
       alert(`Error updating job target: ${error?.error?.error || error.message}`);
     }
   }
 
+  private buildPayload(): any {
+    const formValue = this.applicationForm.value;
+    const payload: any = {
+      companyId: Number(formValue.companyId),
+      jobTitle: formValue.jobTitle,
+      jobDescription: formValue.jobDescription,
+      platform: formValue.platform || undefined,
+      applicationUrl: formValue.applicationUrl || undefined,
+      contactPerson: formValue.contactPerson || undefined,
+      dateApplied: formValue.dateApplied || undefined,
+      status: formValue.status || 'draft',
+      notes: formValue.notes || undefined
+    };
+    Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+    return payload;
+  }
+
   async deleteApplicationItem(applicationId: number): Promise<void> {
+    this.openMenuId = null;
     if (!confirm('Delete this job application?')) return;
 
     try {
       await this.applicationService.deleteApplication(applicationId);
-      alert('Application deleted successfully!');
+      await this.loadApplications();
     } catch (error) {
       console.error('Failed to delete application:', error);
     }
@@ -1195,369 +803,9 @@ export class JobApplicationComponent implements OnInit {
 
   cancelEdit(): void {
     this.isAddingNew = false;
-    this.editingId = null;
+    this.editingApp = null;
     this.showCompanyForm = false;
     this.newCompanyName = '';
     this.applicationForm.reset({ status: 'draft' });
-  }
-
-  async generateResume(applicationId: number): Promise<void> {
-    if (this.generatingResume[applicationId]) {
-      return; // Already generating
-    }
-
-    try {
-      this.generatingResume[applicationId] = true;
-      // Pass custom prompt if available
-      const prompt = this.customPrompt.trim() || undefined;
-      await this.applicationService.generateResume(applicationId, undefined, prompt, this.selectedModel);
-      await this.refreshResumes(applicationId);
-      await this.loadApplications();  // Refresh applications list
-      alert('Resume generated successfully!');
-      this.resumePanels[applicationId] = true;
-    } catch (error: any) {
-      this.generatingResume[applicationId] = false;
-      console.error('Failed to generate resume:', error);
-      const errorMsg = error?.message || 'Failed to generate resume';
-      alert(`Resume generation not successful.\n\nPlease use the "Copy Prompt" button to generate your resume manually.\n\nError: ${errorMsg}`);
-    } finally {
-      this.generatingResume[applicationId] = false;
-    }
-  }
-
-  async refreshResumes(applicationId: number): Promise<void> {
-    try {
-      console.log('Refreshing resumes for application:', applicationId);
-      const items = await this.applicationService.listResumes(applicationId);
-      console.log('Received resumes:', items);
-      const parsed = items.map((r: any) => ({
-        ...r,
-        parsed: this.safeParse(r.content),
-        analysis: {
-          matchScore: r.matchScore ?? null,
-          scoreBreakdown: this.safeParse(r.scoreBreakdown),
-          suggestions: r.suggestions ?? null
-        }
-      }));
-      this.resumesByApp[applicationId] = parsed;
-      console.log('Parsed resumes:', parsed);
-    } catch (error: any) {
-      console.error('Failed to load resumes:', error);
-      alert(`Failed to load resumes: ${error?.error?.error || error.message || 'Unknown error'}`);
-      this.resumesByApp[applicationId] = [];
-    }
-  }
-
-  async analyzeResume(applicationId: number, resumeId: number): Promise<void> {
-    if (this.analyzingResume[applicationId]) {
-      return; // Already analyzing
-    }
-
-    try {
-      this.analyzingResume[applicationId] = true;
-      const model = this.selectedModel;
-      const result = await this.applicationService.analyzeResume(applicationId, resumeId, model);
-      await this.refreshResumes(applicationId);
-      await this.loadApplications(); // Refresh applications list
-
-      this.analysisToast = 'Analyze Fit complete';
-      setTimeout(() => {
-        if (this.analysisToast) {
-          this.analysisToast = null;
-        }
-      }, 2200);
-
-      // Auto-scroll to analysis result so the user sees it immediately
-      const highlightId = `${applicationId}-${resumeId}`;
-      this.highlightedAnalysisId = highlightId;
-      setTimeout(() => {
-        const el = document.getElementById(`analysis-${applicationId}-${resumeId}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 0);
-      setTimeout(() => {
-        if (this.highlightedAnalysisId === highlightId) {
-          this.highlightedAnalysisId = null;
-        }
-      }, 2500);
-    } catch (error: any) {
-      this.analyzingResume[applicationId] = false;
-      console.error('Failed to analyze resume:', error);
-      const errorMsg = error?.error?.error || error?.message || 'Failed to analyze resume';
-      alert(`Analysis failed: ${errorMsg}`);
-    } finally {
-      this.analyzingResume[applicationId] = false;
-    }
-  }
-
-  async toggleResumes(applicationId: number): Promise<void> {
-    const currently = !!this.resumePanels[applicationId];
-    this.resumePanels[applicationId] = !currently;
-    console.log('Toggle resumes panel for app', applicationId, ':', !currently);
-    if (!currently) {
-      // Opening panel - refresh resumes
-      await this.refreshResumes(applicationId);
-    }
-  }
-
-  toggleRaw(applicationId: number): void {
-    this.rawPanels[applicationId] = !this.rawPanels[applicationId];
-  }
-
-  togglePromptEditor(): void {
-    this.showPromptEditor = !this.showPromptEditor;
-    if (this.showPromptEditor) {
-      this.promptDraft = this.customPrompt || this.getDefaultInstructions();
-    }
-  }
-
-  async saveCustomPrompt(): Promise<void> {
-    try {
-      this.customPrompt = this.promptDraft.trim();
-      await this.profileService.saveCustomPrompt(this.customPrompt);
-      this.showPromptEditor = false;
-      alert('Custom prompt saved and synced to your account.');
-    } catch (error) {
-      console.error('Failed to save custom prompt:', error);
-      alert('Failed to save custom prompt to database.');
-    }
-  }
-
-  async resetCustomPrompt(): Promise<void> {
-    try {
-      this.customPrompt = '';
-      await this.profileService.saveCustomPrompt('');
-      this.promptDraft = '';
-      this.showPromptEditor = false;
-      alert('Reverted to default prompt.');
-    } catch (error) {
-      console.error('Failed to reset custom prompt:', error);
-      alert('Failed to reset custom prompt.');
-    }
-  }
-
-  private getDefaultInstructions(): string {
-    return `--- OUTPUT JSON SCHEMA ---
-{
-  "name": "Full Name",
-  "contact": {
-    "location": "City, Country",
-    "phone": "",
-    "email": "",
-    "linkedin": "",
-    "github": "",
-    "portfolio": ""
-  },
-  "summary": "2-3 sentence professional summary tailored to the job",
-  "skills": ["skill1", "skill2", "skill3"],
-  "projects": [
-    {
-      "title": "Project Name",
-      "start": "MMM YYYY",
-      "end": "MMM YYYY or Present",
-      "bullets": ["Impact bullet 1", "Impact bullet 2"],
-      "tech": ["tech1", "tech2"]
-    }
-  ],
-  "experience": [
-    {
-      "company": "Company Name",
-      "role": "Position Title",
-      "start": "MMM YYYY",
-      "end": "MMM YYYY or Present",
-      "bullets": ["Achievement with metrics", "Impact statement"]
-    }
-  ],
-  "education": [
-    {
-      "degree": "Degree",
-      "field": "Field of Study",
-      "institution": "University Name",
-      "start": "MMM YYYY",
-      "end": "MMM YYYY or Present"
-    }
-  ],
-  "certifications": [
-    { "title": "Certification Title" }
-  ]
-}
-
-Guidelines:
-- Use the provided profile, experience, and projects to populate every section.
-- Keep bullets concise, action-oriented, and relevant to the job description.
-- Avoid first-person pronouns; ATS-safe wording only.
-- Use simple vocabulary suitable for Malaysian English.
-- Highlight and refrsame my skills to be relevant for the position.
-- Filter and reframe skills in bullet points to match the job description.
-- Choose only the latest Education entry.
-- No em-dash characters.`;
-  }
-
-  private safeParse(content: any): any {
-    if (!content) return null;
-    if (typeof content === 'object') return content;
-    try {
-      return JSON.parse(content);
-    } catch {
-      return null;
-    }
-  }
-
-  async copyPrompt(app: any): Promise<void> {
-    try {
-      // Fetch user data
-      const profile = await this.profileService.getProfile();
-      const skills = await this.profileService.getUserSkills();
-      const experiences = await this.experienceService.getUserExperiences();
-      const projects = await this.projectService.getProjects(false); // only active projects
-
-      // Format profile data
-      let profileSection = `\n--- USER PROFILE DATA ---\n`;
-      if (profile) {
-        profileSection += `Name: ${profile.user?.name || 'Not specified'}\n`;
-        profileSection += `Email: ${profile.email || profile.user?.email || 'Not specified'}\n`;
-        profileSection += `Phone: ${profile.phone || 'Not specified'}\n`;
-        profileSection += `Location: ${profile.location || 'Not specified'}\n`;
-        profileSection += `LinkedIn: ${profile.linkedin || 'Not specified'}\n`;
-        profileSection += `GitHub: ${profile.github || 'Not specified'}\n`;
-        profileSection += `Portfolio: ${profile.portfolio || 'Not specified'}\n`;
-        if (profile.summary) {
-          profileSection += `\nProfessional Summary:\n${profile.summary}\n`;
-        }
-        
-        if (profile.educations && profile.educations.length > 0) {
-          profileSection += `\nEducation:\n`;
-          profile.educations.forEach((edu: any) => {
-            profileSection += `  - ${edu.degree} in ${edu.field} from ${edu.institution} (${edu.startDate ? new Date(edu.startDate).getFullYear() : ''} - ${edu.endDate ? new Date(edu.endDate).getFullYear() : 'Present'})\n`;
-          });
-        }
-      }
-
-      // Format skills
-      if (skills && skills.length > 0) {
-        profileSection += `\nSkills:\n`;
-        skills.forEach((userSkill: any) => {
-          profileSection += `  - ${userSkill.skill.name}${userSkill.skill.category ? ` (${userSkill.skill.category})` : ''}${userSkill.level ? ` - ${userSkill.level}` : ''}\n`;
-        });
-      }
-
-      // Format experiences
-      let experienceSection = `\n--- USER EXPERIENCE ---\n`;
-      if (experiences && experiences.length > 0) {
-        experiences.forEach((exp: any) => {
-          experienceSection += `\nCompany: ${exp.company}\n`;
-          experienceSection += `Position: ${exp.position}\n`;
-          experienceSection += `Duration: ${exp.startDate ? new Date(exp.startDate).toLocaleDateString() : 'N/A'} - ${exp.endDate ? new Date(exp.endDate).toLocaleDateString() : 'Present'}\n`;
-          if (exp.location) experienceSection += `Location: ${exp.location}\n`;
-          if (exp.description) experienceSection += `Description: ${exp.description}\n`;
-          if (exp.bullets && exp.bullets.length > 0) {
-            experienceSection += `Key Achievements:\n`;
-            exp.bullets.forEach((bullet: any) => {
-              experienceSection += `  - ${bullet.content}\n`;
-            });
-          }
-        });
-      } else {
-        experienceSection += `No experience data available.\n`;
-      }
-
-      // Format projects
-      let projectSection = `\n--- USER PROJECTS ---\n`;
-      if (projects && projects.length > 0) {
-        projects.filter((p: any) => !p.archived).forEach((proj: any) => {
-          projectSection += `\nProject: ${proj.title}\n`;
-          if (proj.summary) projectSection += `Summary: ${proj.summary}\n`;
-          if (proj.role) projectSection += `Role: ${proj.role}\n`;
-          if (proj.techStack) {
-            projectSection += `Technologies: ${proj.techStack}\n`;
-          }
-          if (proj.bullets && proj.bullets.length > 0) {
-            projectSection += `Key Features/Achievements:\n`;
-            proj.bullets.forEach((bullet: any) => {
-              projectSection += `  - ${bullet.content}\n`;
-            });
-          }
-          if (proj.url) projectSection += `URL: ${proj.url}\n`;
-          if (proj.startDate) {
-            projectSection += `Duration: ${new Date(proj.startDate).toLocaleDateString()} - ${proj.endDate ? new Date(proj.endDate).toLocaleDateString() : 'Present'}\n`;
-          }
-        });
-      } else {
-        projectSection += `No project data available.\n`;
-      }
-
-      const defaultInstructions = this.getDefaultInstructions();
-
-      const instructions = this.customPrompt.trim() || defaultInstructions;
-
-      const prompt = `You are an expert ATS resume writer. Generate a concise, ATS-safe resume in JSON format using the exact schema below. Use month-year for dates (e.g., Jan 2024). Avoid fancy formatting.
-
---- JOB TARGET ---
-Job Title: ${app.jobTitle}
-Job Description:
-${app.jobDescription}
-${profileSection}${experienceSection}${projectSection}
-
-${instructions}`;
-
-      await navigator.clipboard.writeText(prompt);
-      alert('Detailed prompt with your profile data copied to clipboard! Paste it into ChatGPT.');
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      alert('Failed to copy prompt. Please try again.');
-    }
-  }
-
-  startImport(applicationId: number): void {
-    this.importingTo = applicationId;
-    this.importContent = '';
-  }
-
-  cancelImport(): void {
-    this.importingTo = null;
-    this.importContent = '';
-  }
-
-  async submitImport(applicationId: number): Promise<void> {
-    if (!this.importContent.trim()) {
-      alert('Please paste resume JSON content.');
-      return;
-    }
-
-    try {
-      await this.applicationService.importResume(applicationId, this.importContent);
-      await this.refreshResumes(applicationId);
-      this.cancelImport();
-      alert('Resume imported successfully!');
-    } catch (error: any) {
-      console.error('Failed to import resume:', error);
-      const msg = error?.error?.error || error?.message || 'Failed to import resume.';
-      alert(`Import failed: ${msg}`);
-    }
-  }
-
-  async deleteResumeVersion(applicationId: number, resumeId: number): Promise<void> {
-    if (!confirm('Delete this resume version? This cannot be undone.')) return;
-
-    try {
-      await this.applicationService.deleteResume(applicationId, resumeId);
-      await this.refreshResumes(applicationId);
-      await this.loadApplications(); // Refresh applications list
-      alert('Resume version deleted.');
-    } catch (error: any) {
-      console.error('Failed to delete resume:', error);
-      alert('Failed to delete resume.');
-    }
-  }
-
-  async exportResumePDF(applicationId: number, resumeId: number): Promise<void> {
-    try {
-      await this.applicationService.downloadResumePDF(applicationId, resumeId);
-      alert('Resume PDF downloaded.');
-    } catch (error: any) {
-      console.error('Failed to download PDF:', error);
-      alert('Failed to download PDF.');
-    }
   }
 }

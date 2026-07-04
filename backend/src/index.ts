@@ -15,6 +15,7 @@ import jobApplicationRoutes from "./routes/jobApplication.routes.js";
 import certificationRoutes from "./routes/certification.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import demoRoutes from "./routes/demo.routes.js";
 
 // Validate environment variables on startup
 validateEnv();
@@ -47,6 +48,7 @@ app.use("/api/job-applications", jobApplicationRoutes);
 app.use("/api/certifications", certificationRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/demo", demoRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

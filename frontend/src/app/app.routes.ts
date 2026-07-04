@@ -5,8 +5,8 @@ import { adminGuard } from './core/guards/admin.guard';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: '/dashboard',
-    pathMatch: 'full'
+    loadComponent: () =>
+      import('./features/landing/landing.component').then((m) => m.LandingComponent)
   },
   {
     path: 'login',
@@ -62,6 +62,12 @@ export const routes: Routes = [
     path: 'job-applications',
     loadComponent: () =>
       import('./features/job-application/job-application.component').then((m) => m.JobApplicationComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'applications/:id/tailor',
+    loadComponent: () =>
+      import('./features/tailoring-workspace/tailoring-workspace.component').then((m) => m.TailoringWorkspaceComponent),
     canActivate: [authGuard]
   },
   {

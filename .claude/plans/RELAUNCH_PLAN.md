@@ -1,6 +1,11 @@
 # RoleFit — Relaunch Plan: Monetization, Onboarding, Tailoring (Planning Only)
 
-> **Status:** Phase 1 (Hygiene + redeploy prep) mostly done — see commit `5dbbeda` ("phase 1 RoleFit relaunch general security fix") and the IDOR fixes to Education/Experience endpoints made afterward. Still open from Phase 1: rotate `JWT_SECRET` and `GEMINI_API_KEY` in `.env` (still placeholder values), set up Sentry, confirm DB backups, set a GCP budget alert. Phases 2+ not started.
+> **Status:** Phases 1–5 done. Phase 6 (Tailoring Workspace) is next.
+> - Phase 1 (Hygiene): commit `5dbbeda` + IDOR fixes. Still open: rotate `JWT_SECRET`, set up Sentry, confirm DB backups, GCP budget alert.
+> - Phase 2 (Email): password reset shipped.
+> - Phase 3 (Monetization): ToyyibPay integration, Subscription model, requireActiveSubscription middleware, monthly (RM29) + weekly (RM9) plans, admin features — commit `71d177a`.
+> - Phase 4 (Onboarding): resume upload + Gemini AI parse → auto-fills Profile/Experience/Projects/Skills/Certifications. `pdf-parse` v2 class-based API used.
+> - Phase 5 (Landing + Demo): public landing page at `/`, gated ATS demo widget, free-tier 1-gen model, DemoUsage rate limiting — see item 5 below for full detail.
 
 ## Context
 
@@ -130,7 +135,17 @@ This belongs inside the Monetization Backbone phase below, not later — it's th
 2. **Email infrastructure:** pick a provider once, ship password reset and payment-receipt/renewal emails off the same plumbing.
 3. **Monetization backbone:** `Subscription` model + ToyyibPay integration + `requireActiveSubscription` middleware + per-period usage cap + minimal admin page (section 5) + legal pages (ToS/Privacy/Refund) + a basic pricing/checkout page.
 4. **Onboarding revamp:** Resume Upload & AI-Parse feature, replacing "fill 4 separate forms" as the first thing a new user does, with file-upload validation hardening.
-5. **Landing page + Demo:** public marketing page, rate-limited real demo (reCAPTCHA + IP/device cap), support/contact info.
+5. **Landing page + Demo:** ✅ DONE — gated multi-step demo experience implemented.
+   - `LandingComponent` (`frontend/src/app/features/landing/`) — public route at `/`, replaces the old redirect-to-dashboard. Includes nav bar, hero, ATS demo widget, How It Works, features grid, pricing (Free / RM9 7-day / RM29 monthly), footer.
+   - **Step 1 (The Hook):** anonymous visitor pastes resume text + job description → `POST /api/demo/analyze` → returns ATS score ring (red/orange/green), matched/missing keyword chips, verdict. Rate-limited by hashed IP via `DemoUsage` table (default 1 check/day; `DEMO_CHECKS_PER_DAY` env var overrides for testing).
+   - **Step 2 (The Gate):** "Fix My Resume" CTA routes unauthenticated users to `/register`.
+   - **Step 3 (Free Tier):** after registration, `tier = "free"`, `freeGenerationUsed = false` — user gets exactly 1 AI resume generation via `requireAiAccess` middleware (allows free-tier first gen OR active subscription).
+   - **Step 4 (Paywall):** after the free generation, subsequent calls to the generate endpoint require an active subscription. Export PDF and Analyze Fit are subscription-only from the start (`requireActiveSubscription`).
+   - **Backend:** `demo.service.ts` (ATS score via Gemini + IP rate-limit check), `demo.controller.ts` (records usage only on successful Gemini response — failed calls don't consume the quota), `demo.routes.ts`, registered at `/api/demo`.
+   - **Models added:** `DemoUsage` (IP hash + timestamp, indexed), `tier` + `freeGenerationUsed` columns on `User`. Migration: `20260702114432_add_demo_usage_and_free_tier`.
+   - **Payment:** `payment.service.ts` extended with `SubscriptionPlan = "monthly" | "weekly"`. Successful ToyyibPay callback now sets `User.tier = "subscriber"`.
+   - **AI model:** all tiers use `gemini-3.1-flash-lite` (configurable via `GEMINI_MODEL_PRO` / `GEMINI_MODEL_FREE` env vars).
+   - **Still deferred from original plan:** reCAPTCHA v3 (not yet wired), support/contact page.
 6. **Tailoring Workspace:** the core paid feature — split-screen JD/resume view, reusing the existing match-score/suggestions fields, section-level regeneration, plus the "review before use" disclaimer.
 7. **Mobile responsiveness pass** across onboarding, demo, and the Tailoring Workspace specifically (this is the job-fair usage context).
 8. **Angular Material adoption**, incrementally, starting with the screens above.

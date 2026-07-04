@@ -40,7 +40,12 @@ export interface Resume {
   applicationId: number;
   version: number;
   content: any;
+  matchScore: number | null;
+  scoreBreakdown: string | null;
+  missingSkills: string | null;
+  suggestions: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -148,6 +153,37 @@ export class JobApplicationService {
     );
   }
 
+  async tailorResume(applicationId: number, jobDescriptionOverride?: string, customPrompt?: string, model?: string): Promise<Resume> {
+    const body: any = {};
+    if (jobDescriptionOverride) body.jobDescription = jobDescriptionOverride;
+    if (customPrompt) body.customPrompt = customPrompt;
+    if (model) body.model = model;
+    return await firstValueFrom(
+      this.http.post<Resume>(`${API_URL}/${applicationId}/resumes/tailor`, body)
+    );
+  }
+
+  async regenerateSection(
+    applicationId: number,
+    resumeId: number,
+    section: 'summary' | 'skills' | 'experience' | 'projects',
+    index?: number
+  ): Promise<{ id: number; content: any; updatedAt: string }> {
+    const body: any = { section };
+    if (index !== undefined) body.index = index;
+    return await firstValueFrom(
+      this.http.post<{ id: number; content: any; updatedAt: string }>(
+        `${API_URL}/${applicationId}/resumes/${resumeId}/sections/regenerate`, body
+      )
+    );
+  }
+
+  async restoreResumeVersion(applicationId: number, resumeId: number): Promise<Resume> {
+    return await firstValueFrom(
+      this.http.post<Resume>(`${API_URL}/${applicationId}/resumes/${resumeId}/restore`, {})
+    );
+  }
+
   async importResume(applicationId: number, content: string): Promise<Resume> {
     return await firstValueFrom(
       this.http.post<Resume>(`${API_URL}/${applicationId}/resumes/import`, { content })
@@ -160,11 +196,11 @@ export class JobApplicationService {
     );
   }
 
-  async analyzeResume(applicationId: number, resumeId: number, model?: string): Promise<{id:number; matchScore:number|null; scoreBreakdown:string|null; suggestions:string|null; updatedAt:string;}> {
+  async analyzeResume(applicationId: number, resumeId: number, model?: string): Promise<{id:number; matchScore:number|null; scoreBreakdown:string|null; missingSkills:string|null; suggestions:string|null; updatedAt:string;}> {
     const body: any = {};
     if (model) body.model = model;
     return await firstValueFrom(
-      this.http.post<{id:number; matchScore:number|null; scoreBreakdown:string|null; suggestions:string|null; updatedAt:string;}>(
+      this.http.post<{id:number; matchScore:number|null; scoreBreakdown:string|null; missingSkills:string|null; suggestions:string|null; updatedAt:string;}>(
         `${API_URL}/${applicationId}/resumes/${resumeId}/analyze`, body
       )
     );

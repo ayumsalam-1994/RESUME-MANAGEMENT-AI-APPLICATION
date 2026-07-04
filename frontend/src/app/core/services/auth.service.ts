@@ -126,10 +126,10 @@ export class AuthService {
   /**
    * Initiate a ToyyibPay subscription — returns a redirect URL
    */
-  subscribe(name: string): Observable<{ redirectUrl: string; subscriptionId: number }> {
+  subscribe(name: string, plan: 'monthly' | 'weekly' = 'monthly'): Observable<{ redirectUrl: string; subscriptionId: number }> {
     return this.http.post<{ redirectUrl: string; subscriptionId: number }>(
       `${this.paymentsUrl}/subscribe`,
-      { name }
+      { name, plan }
     );
   }
 

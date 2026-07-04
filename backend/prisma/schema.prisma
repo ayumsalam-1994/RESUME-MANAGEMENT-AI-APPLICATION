@@ -16,9 +16,11 @@ model User {
   email         String   @unique
   password      String
   name          String
-  role          String   @default("user") // user, admin
-  customPrompt  String?  @db.Text
-  createdAt     DateTime @default(now())
+  role               String   @default("user") // user, admin
+  tier               String   @default("free") // free, subscriber
+  freeGenerationUsed Boolean  @default(false)
+  customPrompt       String?  @db.Text
+  createdAt          DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   profile             Profile?
@@ -252,6 +254,7 @@ model Resume {
   version          Int      @default(1)
   matchScore       Float?
   scoreBreakdown   String?  @db.Text // JSON
+  missingSkills    String?  @db.Text // JSON array string
   suggestions      String?  @db.Text
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -312,6 +315,15 @@ model Reminder {
   updatedAt        DateTime @updatedAt
 
   jobApplication JobApplication @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+}
+
+// Anonymous demo usage (rate-limiting without auth)
+model DemoUsage {
+  id        Int      @id @default(autoincrement())
+  ipHash    String
+  createdAt DateTime @default(now())
+
+  @@index([ipHash, createdAt])
 }
 
 // Status History

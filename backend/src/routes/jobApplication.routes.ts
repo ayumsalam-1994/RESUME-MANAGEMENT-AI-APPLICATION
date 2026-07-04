@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.middleware";
-import { requireActiveSubscription } from "../middleware/subscription.middleware";
+import { requireActiveSubscription, requireAiAccess } from "../middleware/subscription.middleware";
 import {
   createJobApplication,
   deleteJobApplication,
@@ -8,7 +8,18 @@ import {
   getJobApplications,
   updateJobApplication
 } from "../controllers/jobApplication.controller";
-import { generateResume, listResumes, getResume, importResume, deleteResume, exportResumePDF, analyzeResume } from "../controllers/resume.controller";
+import {
+  generateResume,
+  listResumes,
+  getResume,
+  importResume,
+  deleteResume,
+  exportResumePDF,
+  analyzeResume,
+  tailorResume,
+  regenerateResumeSection,
+  restoreResumeVersion
+} from "../controllers/resume.controller";
 
 const router = Router();
 
@@ -21,12 +32,15 @@ router.put("/:applicationId", updateJobApplication);
 router.delete("/:applicationId", deleteJobApplication);
 // Resume generation and listing for an application
 // generate, analyze, export require an active subscription
-router.post("/:applicationId/resumes/generate", requireActiveSubscription, generateResume);
+router.post("/:applicationId/resumes/generate", requireAiAccess, generateResume);
+router.post("/:applicationId/resumes/tailor", requireAiAccess, tailorResume);
 router.post("/:applicationId/resumes/import", importResume);
 router.get("/:applicationId/resumes", listResumes);
 router.get("/:applicationId/resumes/:resumeId", getResume);
 router.delete("/:applicationId/resumes/:resumeId", deleteResume);
 router.get("/:applicationId/resumes/:resumeId/export", requireActiveSubscription, exportResumePDF);
 router.post("/:applicationId/resumes/:resumeId/analyze", requireActiveSubscription, analyzeResume);
+router.post("/:applicationId/resumes/:resumeId/sections/regenerate", requireActiveSubscription, regenerateResumeSection);
+router.post("/:applicationId/resumes/:resumeId/restore", restoreResumeVersion);
 
 export default router;

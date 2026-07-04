@@ -279,7 +279,7 @@ export class PricingComponent {
     const user = this.authService.currentUser();
     const name = user?.name || user?.email || '';
 
-    this.authService.subscribe(name).subscribe({
+    this.authService.subscribe(name, 'monthly').subscribe({
       next: (result) => {
         window.location.href = result.redirectUrl;
       },

@@ -33,5 +33,9 @@ export const config = {
   toyyibpayBaseUrl: process.env.TOYYIBPAY_BASE_URL || "https://toyyibpay.com",
   toyyibpayCallbackUrl: process.env.TOYYIBPAY_CALLBACK_URL as string | undefined,
   subscriptionPriceRM: Number(process.env.SUBSCRIPTION_PRICE_RM) || 29,
-  aiMonthlyQuota: Number(process.env.AI_MONTHLY_QUOTA) || 30
+  weekPassPriceRM: Number(process.env.WEEK_PASS_PRICE_RM) || 9,
+  aiMonthlyQuota: Number(process.env.AI_MONTHLY_QUOTA) || 30,
+  geminiModelPro: process.env.GEMINI_MODEL_PRO || "gemini-3.1-flash-lite",
+  geminiModelFree: process.env.GEMINI_MODEL_FREE || "gemini-3.1-flash-lite",
+  demoChecksPerDay: Number(process.env.DEMO_CHECKS_PER_DAY) || 1
 };

@@ -65,6 +65,84 @@ export async function generateResume(req: Request, res: Response) {
   }
 }
 
+// Generate a tailored resume AND its fit analysis in a single Gemini call
+export async function tailorResume(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const applicationId = Number(req.params.applicationId);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (Number.isNaN(applicationId)) return res.status(400).json({ error: "Invalid application id" });
+
+    const allowedModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash-tts',
+      'gemini-3-flash',
+      'gemma-3-27b-it'
+    ] as const;
+    const bodySchema = z.object({
+      jobDescription: z.string().min(10).optional(),
+      customPrompt: z.string().optional(),
+      model: z.enum(allowedModels).optional()
+    });
+    const { jobDescription, customPrompt, model } = bodySchema.parse(req.body ?? {});
+
+    const resume = await resumeService.tailorForApplication(userId, applicationId, jobDescription, customPrompt, model);
+    res.status(201).json(resume);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Regenerate a single section of the latest resume version
+export async function regenerateResumeSection(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const applicationId = Number(req.params.applicationId);
+    const resumeId = Number(req.params.resumeId);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (Number.isNaN(applicationId) || Number.isNaN(resumeId)) {
+      return res.status(400).json({ error: "Invalid ids" });
+    }
+
+    const bodySchema = z.object({
+      section: z.enum(["summary", "skills", "experience", "projects"]),
+      index: z.number().int().nonnegative().optional()
+    });
+    const { section, index } = bodySchema.parse(req.body ?? {});
+
+    const updated = await resumeService.regenerateResumeSection(userId, applicationId, resumeId, section, index);
+    res.json(updated);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    const status = /latest resume version/.test(error.message) ? 409 : 500;
+    res.status(status).json({ error: error.message });
+  }
+}
+
+// Restore an older resume version as the new current/latest version
+export async function restoreResumeVersion(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    const applicationId = Number(req.params.applicationId);
+    const resumeId = Number(req.params.resumeId);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (Number.isNaN(applicationId) || Number.isNaN(resumeId)) {
+      return res.status(400).json({ error: "Invalid ids" });
+    }
+
+    const restored = await resumeService.restoreResumeVersion(userId, applicationId, resumeId);
+    res.status(201).json(restored);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 // Import resume from pasted JSON
 export async function importResume(req: Request, res: Response) {
   try {

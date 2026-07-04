@@ -2,20 +2,37 @@ import crypto from "crypto";
 import { prisma } from "../db/prisma.js";
 import { config } from "../config.js";
 
-const PRICE_CENTS = config.subscriptionPriceRM * 100;
-const SUBSCRIPTION_DAYS = 30;
+export type SubscriptionPlan = "monthly" | "weekly";
+
+const PLANS: Record<SubscriptionPlan, { priceRM: number; days: number; label: string; description: string }> = {
+  monthly: {
+    priceRM: config.subscriptionPriceRM,
+    days: 30,
+    label: "RoleFit Monthly",
+    description: "RoleFit subscription - 30 days access"
+  },
+  weekly: {
+    priceRM: config.weekPassPriceRM,
+    days: 7,
+    label: "RoleFit 7-Day Pass",
+    description: "RoleFit subscription - 7 days access"
+  }
+};
 
 export class PaymentService {
-  static async createBill(userId: number, email: string, name: string) {
+  static async createBill(userId: number, email: string, name: string, plan: SubscriptionPlan = "monthly") {
     if (!config.toyyibpayUserSecretKey || !config.toyyibpayCategoryCode) {
       throw new Error("Payment gateway not configured. Please set TOYYIBPAY_USER_SECRET_KEY and TOYYIBPAY_CATEGORY_CODE.");
     }
+
+    const { priceRM, label, description } = PLANS[plan];
+    const priceCents = priceRM * 100;
 
     const subscription = await prisma.subscription.create({
       data: {
         userId,
         status: "pending",
-        amount: config.subscriptionPriceRM,
+        amount: priceRM,
         currency: "MYR",
         provider: "toyyibpay"
       }
@@ -27,11 +44,11 @@ export class PaymentService {
     const params = new URLSearchParams({
       userSecretKey: config.toyyibpayUserSecretKey,
       categoryCode: config.toyyibpayCategoryCode,
-      billName: "RoleFit Monthly",
-      billDescription: "RoleFit subscription - 1 month access",
+      billName: label,
+      billDescription: description,
       billPriceSetting: "1",
       billPayorInfo: "1",
-      billAmount: String(PRICE_CENTS),
+      billAmount: String(priceCents),
       billReturnUrl: returnUrl,
       billCallbackUrl: callbackUrl,
       billExternalReferenceNo: String(subscription.id),
@@ -78,39 +95,37 @@ export class PaymentService {
       throw new Error("Payment gateway not configured");
     }
 
-    // Verify hash: MD5(billCode + categoryCode + billpaymentAmount + secretKey)
-    const amount = String(PRICE_CENTS);
+    const subscription = await prisma.subscription.findFirst({ where: { providerBillCode: billcode } });
+    if (!subscription) throw new Error(`No subscription found for bill code: ${billcode}`);
+
+    // Hash verification — ToyyibPay sends amount in cents matching what we originally submitted
+    const priceCents = Number(subscription.amount) * 100;
     const expectedHash = crypto
       .createHash("md5")
-      .update(billcode + config.toyyibpayCategoryCode + amount + config.toyyibpayUserSecretKey)
+      .update(billcode + config.toyyibpayCategoryCode + String(priceCents) + config.toyyibpayUserSecretKey)
       .digest("hex");
 
-    if (hash !== expectedHash) {
-      throw new Error("Invalid payment callback signature");
-    }
+    if (hash !== expectedHash) throw new Error("Invalid payment callback signature");
 
-    const subscription = await prisma.subscription.findFirst({
-      where: { providerBillCode: billcode }
-    });
-
-    if (!subscription) {
-      throw new Error(`No subscription found for bill code: ${billcode}`);
-    }
+    // Determine subscription duration from the amount paid
+    const plan = Number(subscription.amount) <= config.weekPassPriceRM ? "weekly" : "monthly";
+    const days = PLANS[plan].days;
 
     if (status === "1") {
       const now = new Date();
-      const expiresAt = new Date(now.getTime() + SUBSCRIPTION_DAYS * 24 * 60 * 60 * 1000);
+      const expiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
       await prisma.subscription.update({
         where: { id: subscription.id },
-        data: { status: "active", startsAt: now, expiresAt }
+        data: {
+          status: "active",
+          startsAt: now,
+          expiresAt,
+          user: { update: { tier: "subscriber" } }
+        }
       });
     } else if (status === "3") {
-      await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { status: "cancelled" }
-      });
+      await prisma.subscription.update({ where: { id: subscription.id }, data: { status: "cancelled" } });
     }
-    // status "2" = pending — leave as-is, ToyyibPay will call back again when resolved
   }
 
   static async getSubscriptionStatus(userId: number) {
@@ -129,6 +144,11 @@ export class PaymentService {
       };
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { tier: true, freeGenerationUsed: true }
+    });
+
     const pending = await prisma.subscription.findFirst({
       where: { userId, status: "pending" },
       orderBy: { createdAt: "desc" }
@@ -137,7 +157,9 @@ export class PaymentService {
     return {
       isActive: false,
       pending: !!pending,
-      pendingBillCode: pending?.providerBillCode ?? null
+      pendingBillCode: pending?.providerBillCode ?? null,
+      isFree: user?.tier === "free",
+      freeGenerationUsed: user?.freeGenerationUsed ?? false
     };
   }
 }
