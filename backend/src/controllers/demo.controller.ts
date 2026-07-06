@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { checkDemoRateLimit, recordDemoUsage, analyzeAtsScore } from "../services/demo.service.js";
+import { AI_BUSY_MESSAGE, isAiServiceBusyError } from "../utils/aiError";
 
 export class DemoController {
   static async analyze(req: Request, res: Response): Promise<void> {
@@ -35,6 +36,10 @@ export class DemoController {
       await recordDemoUsage(ipHash);
       res.json({ ...analysis, remainingChecks: remaining });
     } catch (err) {
+      if (isAiServiceBusyError(err)) {
+        res.status(503).json({ error: AI_BUSY_MESSAGE });
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
       res.status(500).json({ error: msg });
     }

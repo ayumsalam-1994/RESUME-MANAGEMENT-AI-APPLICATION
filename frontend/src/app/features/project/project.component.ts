@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { RecentlyAddedService } from '../../core/services/recently-added.service';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
@@ -156,7 +157,7 @@ import {
 
         <div class="project-list">
           @for (project of projectService.projectsSignal(); track project.id; let idx = $index) {
-            <div class="project-card" [class.archived]="project.archived">
+            <div class="project-card" [class.archived]="project.archived" [class.newly-added]="recentlyAdded.isNew('projects', project.id)">
               @if (editingId === project.id) {
                 <!-- Edit Form -->
                 <form [formGroup]="projectForm" (ngSubmit)="saveProject(project.id)">
@@ -428,6 +429,25 @@ import {
         border-style: dashed;
       }
 
+      &.newly-added {
+        box-shadow: 0 0 0 2px #22c55e;
+        position: relative;
+
+        &::after {
+          content: 'New';
+          position: absolute;
+          top: -8px;
+          right: 8px;
+          background: #22c55e;
+          color: white;
+          font-size: 10px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 8px;
+          text-transform: uppercase;
+        }
+      }
+
       &.add-form {
         margin-bottom: 20px;
       }
@@ -692,7 +712,7 @@ import {
     }
   `,
 })
-export class ProjectComponent implements OnInit {
+export class ProjectComponent implements OnInit, OnDestroy {
   projectForm!: FormGroup;
   imageForm!: FormGroup;
   isAddingNew = false;
@@ -707,12 +727,17 @@ export class ProjectComponent implements OnInit {
 
   constructor(
     public projectService: ProjectService,
+    public recentlyAdded: RecentlyAddedService,
     private fb: FormBuilder
   ) {}
 
   ngOnInit(): void {
     this.initializeForms();
     this.loadProjects();
+  }
+
+  ngOnDestroy(): void {
+    this.recentlyAdded.clear('projects');
   }
 
   private initializeForms(): void {

@@ -94,12 +94,16 @@ async function main() {
         userId: admin.id,
         email: "admin@gmail.com",
         phone: "+60 12-345 6789",
-        linkedin: "https://linkedin.com/in/admin-user",
-        github: "https://github.com/adminuser",
-        portfolio: "https://adminuser.dev",
         location: "Kuala Lumpur, Malaysia",
         summary: "Experienced software engineer with 5+ years in full-stack development. Passionate about building scalable applications and mentoring junior developers."
       }
+    });
+    await prisma.profileLink.createMany({
+      data: [
+        { profileId: profile.id, type: "LinkedIn", url: "https://linkedin.com/in/admin-user" },
+        { profileId: profile.id, type: "GitHub", url: "https://github.com/adminuser" },
+        { profileId: profile.id, type: "Portfolio", url: "https://adminuser.dev" }
+      ]
     });
     console.log("✓ Profile created");
   }

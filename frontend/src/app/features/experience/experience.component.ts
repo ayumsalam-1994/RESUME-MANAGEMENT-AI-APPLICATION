@@ -1,7 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ExperienceService, Experience } from '../../core/services/experience.service';
+import { RecentlyAddedService } from '../../core/services/recently-added.service';
 
 @Component({
   selector: 'app-experience',
@@ -81,7 +82,7 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
         @if (experienceService.experiencesSignal().length > 0) {
           <div class="experiences-list">
             @for (exp of experienceService.experiencesSignal(); track exp.id) {
-              <div class="experience-card">
+              <div class="experience-card" [class.newly-added]="recentlyAdded.isNew('experience', +exp.id)">
                 @if (!isEditingId || isEditingId !== exp.id) {
                   <div class="experience-header">
                     <div>
@@ -448,6 +449,25 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
       }
     }
 
+    .newly-added {
+      box-shadow: 0 0 0 2px #22c55e;
+      position: relative;
+
+      &::after {
+        content: 'New';
+        position: absolute;
+        top: -8px;
+        right: 8px;
+        background: #22c55e;
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 8px;
+        text-transform: uppercase;
+      }
+    }
+
     @media (max-width: 768px) {
       .container {
         padding: 12px;
@@ -520,7 +540,7 @@ import { ExperienceService, Experience } from '../../core/services/experience.se
     }
   `,
 })
-export class ExperienceComponent implements OnInit {
+export class ExperienceComponent implements OnInit, OnDestroy {
   experienceForm: FormGroup | null = null;
   isAddingNew = false;
   isEditingId: string | null = null;
@@ -529,12 +549,17 @@ export class ExperienceComponent implements OnInit {
 
   constructor(
     public experienceService: ExperienceService,
+    public recentlyAdded: RecentlyAddedService,
     private fb: FormBuilder
   ) {}
 
   ngOnInit(): void {
     this.initializeForm();
     this.loadExperiences();
+  }
+
+  ngOnDestroy(): void {
+    this.recentlyAdded.clear('experience');
   }
 
   private initializeForm(): void {

@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { prisma } from "../db/prisma";
 import { config } from "../config";
 import PDFDocument from "pdfkit";
+import { AI_BUSY_MESSAGE, isAiServiceBusyError } from "../utils/aiError";
 
 async function getActiveSubscription(userId: number) {
   return prisma.subscription.findFirst({
@@ -122,7 +123,7 @@ export class ResumeService {
     // Gather user data
     const [user, profile, experiences, projects, application, userSkills] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
-      prisma.profile.findUnique({ where: { userId } }),
+      prisma.profile.findUnique({ where: { userId }, include: { profileLinks: true } }),
       prisma.experience.findMany({
         where: { userId },
         include: { bullets: { orderBy: { order: "asc" } } },
@@ -202,9 +203,7 @@ export class ResumeService {
               location: "string",
               phone: "string",
               email: "string",
-              linkedin: "string",
-              github: "string",
-              portfolio: "string"
+              links: [{ type: "string (e.g. LinkedIn, GitHub, Portfolio, or a custom label)", url: "string" }]
             },
             summary: "string",
             skills: "string[]",
@@ -303,6 +302,7 @@ export class ResumeService {
 
       return resume;
     } catch (err: any) {
+      if (isAiServiceBusyError(err)) throw new Error(AI_BUSY_MESSAGE);
       const msg = err?.message || "Unknown error generating resume with Gemini API";
       throw new Error(`Resume generation failed: ${msg}. Please use the Copy Prompt button to generate manually.`);
     }
@@ -344,7 +344,7 @@ export class ResumeService {
 
     const [user, profile, experiences, projects, application, userSkills] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
-      prisma.profile.findUnique({ where: { userId } }),
+      prisma.profile.findUnique({ where: { userId }, include: { profileLinks: true } }),
       prisma.experience.findMany({
         where: { userId },
         include: { bullets: { orderBy: { order: "asc" } } },
@@ -428,9 +428,7 @@ export class ResumeService {
               location: "string",
               phone: "string",
               email: "string",
-              linkedin: "string",
-              github: "string",
-              portfolio: "string"
+              links: [{ type: "string (e.g. LinkedIn, GitHub, Portfolio, or a custom label)", url: "string" }]
             },
             summary: "string",
             skills: "string[]",
@@ -539,6 +537,7 @@ export class ResumeService {
 
       return resume;
     } catch (err: any) {
+      if (isAiServiceBusyError(err)) throw new Error(AI_BUSY_MESSAGE);
       const msg = err?.message || "Unknown error generating resume with Gemini API";
       throw new Error(`Resume tailoring failed: ${msg}. Please use the Copy Prompt button to generate manually.`);
     }
@@ -652,6 +651,7 @@ export class ResumeService {
 
       return updated;
     } catch (err: any) {
+      if (isAiServiceBusyError(err)) throw new Error(AI_BUSY_MESSAGE);
       throw new Error(`Section regeneration failed: ${err?.message || "Unknown error"}`);
     }
   }
@@ -783,13 +783,16 @@ export class ResumeService {
     sectionHeader("Contact Information");
     doc.fontSize(12).font("Times-Roman").fillColor("#000000");
     const contact = resumeContent.contact || {};
+    const linkLines = Array.isArray(contact.links)
+      ? contact.links
+          .filter((l: any) => l?.url)
+          .map((l: any) => (l.type ? `${l.type}: ${l.url}` : l.url))
+      : [];
     const contactLines = [
       contact.location,
       contact.phone,
       contact.email,
-      contact.linkedin,
-      contact.github,
-      contact.portfolio
+      ...linkLines
     ].filter(Boolean);
     if (contactLines.length) {
       doc.text(contactLines.join(" | "), { width: contentWidth });
@@ -970,6 +973,7 @@ export class ResumeService {
 
       return updated;
     } catch (err: any) {
+      if (isAiServiceBusyError(err)) throw new Error(AI_BUSY_MESSAGE);
       throw new Error(`Analysis failed: ${err?.message || 'Unknown error'}`);
     }
   }

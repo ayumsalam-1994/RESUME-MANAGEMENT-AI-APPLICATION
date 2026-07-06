@@ -14,6 +14,7 @@ import {
   JobApplicationService
 } from '../../core/services/jobApplication.service';
 import { Company, CompanyService } from '../../core/services/company.service';
+import { extractErrorMessage } from '../../core/utils/error.util';
 
 interface StatusColumn {
   key: string;
@@ -739,7 +740,7 @@ export class JobApplicationComponent implements OnInit {
       this.cancelEdit();
     } catch (error: any) {
       console.error('Failed to add application:', error);
-      alert(`Error adding job target: ${error?.error?.error || error.message}`);
+      alert(`Error adding job target: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -753,7 +754,7 @@ export class JobApplicationComponent implements OnInit {
       this.cancelEdit();
     } catch (error: any) {
       console.error('Failed to update application:', error);
-      alert(`Error updating job target: ${error?.error?.error || error.message}`);
+      alert(`Error updating job target: ${extractErrorMessage(error)}`);
     }
   }
 

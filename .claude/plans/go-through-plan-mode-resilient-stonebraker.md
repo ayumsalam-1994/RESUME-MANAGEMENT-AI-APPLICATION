@@ -1,175 +1,158 @@
-# Tailoring Workspace + Job Application Kanban Board (Phase 6) — Implementation Plan
+# Flexible Profile Links + Re-runnable Onboarding with Review — Implementation Plan
+
+> Previous phase (Tailoring Workspace + Job Application Kanban Board) shipped and was verified end-to-end in-browser. This plan covers the next phase, based on real feedback from testing the app on a phone: (1) replace the fixed linkedin/github/portfolio profile fields with a flexible list of links, and (2) make the onboarding resume-upload reachable any time and re-runnable, appending new data with a mandatory review-before-commit step.
 
 ## Context
 
-Stages 1-5 of the relaunch (hygiene, email, monetization/ToyyibPay, onboarding auto-fill, landing+demo) are done. The Tailoring Workspace is the actual paid product being sold — today, resume generation/analysis lives as a developer-oriented panel bolted onto each Job Application card: a raw Gemini model-name dropdown, a free-text system-prompt editor, a "Copy Prompt into ChatGPT" manual fallback, a raw-JSON toggle, and separate "Generate AI" / "Analyze Fit" buttons that each cost a full Gemini call. This is functional for the app's builder but not something to hand a paying customer.
+Real usage surfaced two gaps:
+1. **Profile URLs are rigid.** `Profile` has exactly three fixed columns (`linkedin`, `github`, `portfolio`). Users may have other link types (Twitter, Behance, a second portfolio, etc.) with no way to add them.
+2. **Onboarding's resume upload is a one-shot, hidden feature.** It's only reachable via a post-registration redirect (no persistent nav entry), and it writes straight to the database with zero review — a user can't safely re-run it to pull in more resume content later without either duplicating data or being unable to see what changed.
 
-This phase replaces that panel with a dedicated, mobile-friendly split-screen workspace, and — per the user's explicit idea — merges resume generation and fit-analysis into a single Gemini call for the primary flow to cut AI cost/latency roughly in half on the dominant path, while keeping a standalone re-analyze action alive for resumes that were imported or hand-edited.
+Both fixes were scoped together because they share one file (`resumeParser.service.ts`) — building the onboarding rework against the old fixed 3-field shape and then reworking it for links would mean touching the same extraction/merge logic twice.
 
-Scope was then expanded once: the flat, filter-dropdown job-application list is being replaced with a **Kanban board** (columns per status, drag-to-move cards), styled after job-tracker apps like eztrackr.app. This directly serves the "user can easily track their jobs" goal, and conveniently reuses infrastructure already in place — `StatusHistory` is already auto-logged on every status change server-side (`jobApplication.service.ts`, backend), just never surfaced in the UI, so moving a card between columns needs zero new backend work beyond the existing update endpoint. Dashboard analytics wiring remains deferred to a later phase.
+## Decisions (already made)
 
-## Key decisions (already made, not open for re-litigation)
+1. **No data migration for existing linkedin/github/portfolio values.** The columns are just dropped — acceptable pre-launch, no real customers depend on this data.
+2. **No automated dedup/similarity detection for onboarding re-runs.** The mandatory review screen is the entire dedup mechanism — user removes what they don't want. Confirmed exception: exact-URL-string dedup for links, and the already-existing `UserSkill` unique-constraint dedup for skills, since both are free/exact rather than fuzzy.
+3. **Onboarding review screen is remove-only, not full inline-edit**, to keep the frontend surface small (one list+remove pattern across 6 entity types, not six full CRUD forms). **After commit, destination pages show a temporary highlight on newly-added items** so the user can quickly find and edit anything that needs fixing, using the pages' existing edit UI.
+4. **Keep the "onboarding" route/component name as-is** (minimal diff) — only the nav label and on-page copy get reframed as repeatable-use rather than first-time-only.
 
-1. **Merge generate+analyze** into one Gemini call for the primary "Tailor My Resume" action. Keep the existing standalone `analyze` endpoint alive as a smaller "Re-check Fit" action for imported/hand-edited resumes.
-2. **Scope: Tailoring Workspace + the job-application list's board layout only.** Deeper job-tracking UX (a visible `StatusHistory` timeline per card, dashboard analytics counts) stays deferred to a later phase.
-3. **Free-tier users see the analysis too** (score/breakdown/suggestions), since it's computed "for free" as part of their one lifetime generation — framed as an upgrade hook, not paywalled.
-4. **Version history: view + restore, capped at 5 versions per job application.** A compact dropdown shows up to the 5 most recent resume versions; the user can restore an older version to become the current/latest one. When a new version would exceed the cap, the oldest version for that application is pruned.
-5. **Kanban board fully replaces the flat list.** The status-filter dropdown goes away — status is now visually obvious from column position.
-6. **Mobile drag UX**: columns become horizontally swipeable (one column per screen, CSS scroll-snap) with working touch drag-and-drop between columns, plus a "Move to..." dropdown on every card as a fallback so status changes never depend on a precise drag gesture (also serves as a keyboard/accessibility path on desktop).
+## Ground truth (verified by reading the actual files)
 
-## Ground-truth findings from the codebase (verified by reading the actual files, not assumed)
+- `Profile` model: `backend/prisma/schema.prisma:75-90`, fixed fields at 80-82 (`linkedin`, `github`, `portfolio`, all `String?`). `Education` (93-107) is the child-table pattern to mirror exactly: own `id`, FK `profileId`, scalars, timestamps, `onDelete: Cascade`.
+- Education CRUD to mirror 1:1: controller `backend/src/controllers/profile.controller.ts` (`getUserEducation` 75-87, `addEducation` 90-115, `updateEducation` 118-156, `deleteEducation` 159-179); routes `backend/src/routes/profile.routes.ts:53-57`; service `backend/src/services/profile.service.ts` (`addEducation` 52-72, `updateEducation` 75-90, `deleteEducation` 93-107, `getUserEducation` 110-125, both `getProfile`/`upsertProfile` at 6-49 `include` educations).
+- Frontend mirror target: `frontend/src/app/features/profile/profile.component.ts` — Education is a plain array (not `FormArray`, line ~536) rendered with `@for`, one reusable `educationForm` toggled via `isAddingEducation`/`isEditingEducationId` flags (~532-533), add/edit/delete methods (~639-717). The 3 URL fields today are plain inputs inside the single `profileForm` (template 51-64, group 564-566, patch 592-594).
+- `backend/src/services/resumeParser.service.ts` (read in full): `ParsedProfile` interface (10-17, has `linkedin`/`github`/`portfolio`), Gemini prompt shape (123-185, same 3 fields at 129-131), `populateProfile` (203-340, **already a standalone function**, fill-only-if-empty for Profile at 213-230, plain-`create`-always-additive for Education/Experience/Projects/Certifications with **zero dedup today**, Skills already correctly deduped via `skill.upsert` + `userSkill.findUnique` at 312-328), `parseAndPopulate` (345-356, just chains `extractText` → `parseWithGemini` → `populateProfile` with no gap — this is what needs splitting).
+- `backend/src/controllers/resumeParser.controller.ts` (read in full): `parseResume` (12-48) validates then calls `parseAndPopulate` directly — writes to DB before any response is ever sent, so there is currently nothing for a review UI to render.
+- Route: `backend/src/routes/profile.routes.ts:43` — `router.post('/parse-resume', resumeUpload.single('resume'), parseResume)`.
+- Nav: `frontend/src/app/app.html:11-19` has no onboarding link. Only entry points today: `register.component.ts:238` → `login.component.ts:218-219` post-signup redirect relay.
+- `backend/src/index.ts:34` — `app.use(express.json())` with **no explicit size limit** (Express default 100kb). A parsed-resume JSON payload sent back for commit is unlikely to exceed this in almost all cases but it's a one-line proactive fix to raise it.
+- **Resolved (was an open question): MySQL collation is `utf8mb4_unicode_ci`** (confirmed in every migration file, e.g. `backend/prisma/migrations/20251218033851_init/migration.sql:14`) — case-insensitive. This means `Skill.name`'s uniqueness is already case-insensitive at the DB layer, so the new skill-dedup-precompute logic must also compare case-insensitively (lowercase both sides) to stay consistent with what `populateProfile`'s `skill.upsert` will actually do.
+- `backend/scripts/seed-jobs.ts:97-99` sets `linkedin`/`github`/`portfolio` directly in a `prisma.profile.create()` call — **will fail to compile once those columns are dropped**, found during exploration, not in the original request, but must be fixed alongside the schema change.
 
-- `Resume` model (`backend/prisma/schema.prisma:249-264`): `id, userId, jobApplicationId?, content (Text/JSON string), version, matchScore (Float?), scoreBreakdown (Text/JSON string?), suggestions (Text?), createdAt, updatedAt`. **No `missingSkills` column exists** — confirmed by direct read. Needs to be added.
-- `generateForApplication` (`resume.service.ts:98-307`) and `analyzeResume` (`resume.service.ts:503-591`) are two fully separate Gemini calls today, but **already share the same `subscription.aiGenerations` quota counter** — confirmed via `checkAndIncrementAiQuota` (`resume.service.ts:48-59`) and `resolveGenerationAccess`/`markGenerationUsed` (`resume.service.ts:16-46`). So merging saves an actual Gemini API call and latency, not additional quota headroom.
-- `requireAiAccess` allows one free-tier lifetime generation OR an active subscriber; `requireActiveSubscription` (used today by `analyze` and PDF export) is subscriber-only. (`backend/src/middleware/subscription.middleware.ts:13-53`)
-- Frontend `Resume` interface (`frontend/src/app/core/services/jobApplication.service.ts:38-44`) is missing `matchScore`/`scoreBreakdown`/`suggestions` entirely — confirmed by direct read; today's component reads them via untyped `any`. Needs fixing as part of this work.
-- Reusable resume-rendering markup: `frontend/src/app/features/job-application/job-application.component.ts:229-273` (summary/skills/experience/projects). Reusable analysis-rendering markup: same file, `:278-310` (score badge/breakdown/suggestions).
-- Reusable split-grid layout: `frontend/src/app/features/landing/landing.component.ts` `.demo-inputs` (~`:410-415`, `grid-template-columns:1fr 1fr`, collapses to `1fr` at `@media (max-width:768px)` ~`:552`) and `.kw-grid` missing-keyword chip pattern (~`:122-138`, `:463`).
-- AI disclaimer copy already exists and is legally reviewed: `frontend/src/app/features/legal/terms.component.ts:25` — *"Resume content is generated by Google Gemini AI. We do not guarantee accuracy. You are responsible for reviewing all AI-generated content before submitting it to any employer."* Reuse verbatim.
-- `AuthService.getUserRole()` (`auth.service.ts:115-124`) and `getSubscriptionStatus()` (`auth.service.ts:139-141`, returns an Observable) are reusable for admin-gating the debug panel and showing quota usage in the workspace header.
-- No `:id`-based routed feature exists yet in `app.routes.ts` — this is the first. Standard `ActivatedRoute` usage applies; no existing convention to break.
-- `JobApplication.status` (`backend/prisma/schema.prisma:225-246`) is a free-text `String`, default `"draft"`, with allowed values documented in a comment: `draft, applied, interviewing, offer, rejected, withdrawn` — not a Prisma enum, but a fixed, known set that maps 1:1 to Kanban columns with no schema change needed.
-- `StatusHistory` model **already exists** (`schema.prisma:329-337`) and is **already auto-logged**: `jobApplication.service.ts`'s `updateJobApplication` writes a new `StatusHistory` row whenever `status` changes (confirmed in prior exploration), and both list/get already eager-load `statusHistory` ordered by `changedAt desc`. So a Kanban drag-to-move needs no new backend logic — it just calls the existing `PUT /:applicationId` update endpoint with a new `status`, and history logging is already a side effect of that call.
-- `frontend/package.json` has `@angular/core: ^20.3.0` but **no `@angular/cdk` dependency today** — needs to be added (matching major version) for `DragDropModule`/`cdkDropList`/`cdkDrag`.
+---
 
-## 0. Job Application Kanban Board
+## Feature A: Flexible Profile Links
 
-Replaces `frontend/src/app/features/job-application/job-application.component.ts`'s flat card-list + status-filter-dropdown entirely. No backend or schema changes needed — the existing `PUT /:applicationId` endpoint (and its already-in-place `StatusHistory` auto-logging) is reused as-is for every status change.
-
-**Dependency**: add `@angular/cdk` at a version matching `@angular/core: ^20.3.0`, for `DragDropModule` (`cdkDropList`, `cdkDrag`, `cdkDropListConnectedTo`).
-
-**Layout**:
-- One column per status value, in a fixed order: `Draft → Applied → Interviewing → Offer → Rejected → Withdrawn`. Column header shows the status label + a live count of cards in it.
-- Each column is a `cdkDropList`, all six connected via `cdkDropListConnectedTo` so a card can be dragged from any column into any other.
-- **Card content** (kept compact, since Kanban cards need to scan quickly): job title, company name, date applied (if set), platform (small text/icon), a **"Tailor →"** link/button that navigates to `/applications/:id/tailor` (this replaces where the old flat-list plan had put the button), and a small overflow (⋮) menu for Edit/Delete — keeps the primary card surface uncluttered.
-- **Drag-and-drop**: on `cdkDropListDropped`, if the card's column changed, call the existing `updateApplication(id, { status: newColumnStatus })` — this alone triggers the existing backend `StatusHistory` logging, no new endpoint needed.
-- **"Move to..." fallback**: every card also has a compact status `<select>`/dropdown (or menu) that calls the same `updateApplication` — works identically to a drag, serves as the primary interaction path on mobile and as a keyboard-accessible alternative on desktop.
-- **Mobile (`<768px`)**: columns become horizontally swipeable via CSS `scroll-snap-type: x mandatory`, one column filling the viewport width at a time, with small tab/pill buttons above the board (one per status) to jump directly to a column without swiping through all six. Drag-and-drop still works via CDK's touch support within the visible column; the "Move to..." dropdown remains available as the reliable fallback per decision 6.
-- **New application / Edit**: the existing create/edit reactive form (today's `application-card.add-form`) is reused as-is, opened in a modal/dialog overlay instead of inline in the list, since there's no natural "inline" position in a column-based board. New applications are created with `status: 'draft'` and land in the Draft column.
-
-**Styling**: reuse the existing status-color mapping already defined per status (`job-application.component.ts` status-badge colors) as each column's accent color, and the existing card visual style (white bg, left status-color border, `border-radius`, box-shadow) from today's `.application-card`.
-
-## 1. Backend changes
-
-### 1.1 Prisma migration
-Add one additive nullable column to `Resume`:
+### A.1 Schema (`backend/prisma/schema.prisma`)
+Remove `linkedin`/`github`/`portfolio` (lines 80-82) from `Profile`. Add:
 ```prisma
-missingSkills String? @db.Text // JSON array string
-```
-Needed because the missing-skills chip UI needs structured data — folding it into free-text `suggestions` (as today's `analyzeResume` does) isn't reliably parseable back out.
+model ProfileLink {
+  id        Int      @id @default(autoincrement())
+  profileId Int
+  type      String   // "LinkedIn" | "GitHub" | "Portfolio" | free-text custom label
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-### 1.2 `backend/src/services/resume.service.ts`
-
-**New: `tailorForApplication(userId, applicationId, jobDescriptionOverride?, customPrompt?, modelName?)`**
-- Same data-fetching shape as `generateForApplication` (`:121-143`), but this time actually includes `userSkills` in the prompt payload (today's `generateForApplication` fetches `userSkills` but never sends them to Gemini — a latent bug; fix lands only in this new path, the old endpoint is left untouched to avoid regression risk on code that's being phased out).
-- One merged JSON output schema returning both resume fields (name/contact/summary/skills/projects/experience/education/certifications) and analysis fields (`matchScore`, `scoreBreakdown{skills,experience,projects,summary}`, `missingSkills[]`, `suggestions`) in a single `generateContent()` call.
-- Single `prisma.resume.create()` sets `content`, `version`, `matchScore`, `scoreBreakdown`, `missingSkills`, `suggestions` all at once (today, creation and analysis are two separate writes).
-- **Version cap enforcement**: before creating the new version, count existing versions for `(userId, applicationId)`; if count `>= 5`, delete the oldest version (lowest `version` number) so the new one still fits within 5.
-- Quota/cooldown: reuses `resolveGenerationAccess`/`markGenerationUsed` and the existing `lastGenerationTime` cooldown map (60s) — shared with the legacy `generateResume` endpoint so a user can't bypass the throttle by alternating between old and new endpoints.
-
-**New: `regenerateResumeSection(userId, applicationId, resumeId, section, index?, modelName?)`**
-- `section` ∈ `summary | skills | experience | projects` (Education/Certifications excluded — factual fields, low AI value).
-- Rejects with a 409-style error if `resumeId` isn't the current latest version (prevents mutating history).
-- New dedicated cooldown map `lastSectionRegenTime`, 30s window (shorter than full generate, since it's meant to feel fast/iterative).
-- Quota: reuses `checkAndIncrementAiQuota` — subscriber-only, flat 1 unit per call (no free-tier section regen; free tier's one generation already includes analysis as their upgrade hook, refinement is a subscriber feature).
-- Sends the resume's own current JSON section (not a re-query of the original Experience/Project DB rows, since imported/edited resumes may have drifted) plus job description and full resume content for consistency.
-- Patches only the targeted field in place — **does not create a new version**, does not touch `matchScore`/`scoreBreakdown`/`suggestions`/`missingSkills` (those become "possibly stale" until a Re-check Fit).
-
-**New: `restoreResumeVersion(userId, applicationId, resumeId)`**
-- Clones the target older version's `content`, `matchScore`, `scoreBreakdown`, `missingSkills`, `suggestions` into a brand-new version row (next version number) — since the content is unchanged from when that analysis ran, the scores are still valid to carry over.
-- Applies the same 5-version cap/prune logic as `tailorForApplication`.
-- No Gemini call — no quota/cooldown gating needed, just `authenticate` + ownership check (in practice subscriber-only anyway, since free tier never accumulates multiple versions).
-
-**Unchanged:** `getResumesForApplication`, `getResume`, `deleteResume`, `importResume`, `generatePDF`, `analyzeResume`, `generateForApplication` (kept reachable for the admin/debug panel and the "Re-check Fit" action).
-
-### 1.3 New endpoint contracts (`backend/src/controllers/resume.controller.ts`, `backend/src/routes/jobApplication.routes.ts`)
-
-| Method | Path | Guard | Purpose |
-|---|---|---|---|
-| POST | `/:applicationId/resumes/tailor` | `requireAiAccess` | merged generate+analyze |
-| POST | `/:applicationId/resumes/:resumeId/sections/regenerate` | `requireActiveSubscription` | section-level regen |
-| POST | `/:applicationId/resumes/:resumeId/restore` | `authenticate` | restore an older version as new latest |
-
-`tailor` request: `{ jobDescription?, customPrompt?, model? }` → response `201` with the full new `Resume` row (content + matchScore + scoreBreakdown + missingSkills + suggestions).
-`sections/regenerate` request: `{ section, index? }` → response `200` `{ id, content, updatedAt }`.
-`restore` request: none → response `200` with the newly-created version's full `Resume` row.
-
-**Unchanged endpoints:** `resumes/generate` (kept for the admin/debug panel), `resumes/import`, `GET resumes`, `GET resumes/:resumeId`, `DELETE resumes/:resumeId`, `resumes/:resumeId/export` (`requireActiveSubscription`), `resumes/:resumeId/analyze` (`requireActiveSubscription`, this is "Re-check Fit").
-
-### 1.4 Quota / cooldown matrix
-
-| Action | Guard | Quota | Cooldown |
-|---|---|---|---|
-| Tailor (merged) | `requireAiAccess` | 1 unit | 60s, shared `lastGenerationTime` map |
-| Re-check Fit (standalone analyze) | `requireActiveSubscription` | 1 unit | 60s, existing `lastAnalysisTime` map |
-| Section regen | `requireActiveSubscription` | 1 unit | 30s, new `lastSectionRegenTime` map |
-| Restore | `authenticate` only | none | none |
-| Legacy generate (debug panel) | `requireAiAccess` | 1 unit | 60s, shared `lastGenerationTime` map |
-
-## 2. Frontend changes
-
-### 2.1 Routing (`frontend/src/app/app.routes.ts`)
-```ts
-{
-  path: 'applications/:id/tailor',
-  loadComponent: () => import('./features/tailoring-workspace/tailoring-workspace.component').then(m => m.TailoringWorkspaceComponent),
-  canActivate: [authGuard]
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 }
 ```
+Add `profileLinks ProfileLink[]` to `Profile`. No `label` field — `type` doubles as the display label for both suggested and custom entries. Run `npx prisma migrate dev --name replace_profile_contact_fields_with_links` then `npx prisma generate` first, since every backend file below depends on the regenerated types.
 
-### 2.2 `frontend/src/app/core/services/jobApplication.service.ts`
-- Fix `Resume` interface: add `matchScore: number | null`, `scoreBreakdown: string | null`, `missingSkills: string | null`, `suggestions: string | null`.
-- Add `tailorResume()`, `regenerateSection()`, `restoreResumeVersion()` following the existing `firstValueFrom(http...)` convention (`:141-171`). Existing methods (`listResumes`, `generateResume`, `importResume`, `analyzeResume`, `downloadResumePDF`, `deleteResume`) stay unchanged.
+### A.2-A.4 Backend CRUD (mirror Education 1:1)
+- `profile.controller.ts`: remove the 3 fields from `ProfileUpdateSchema` (6-15); add `ProfileLinkSchema` (`{ type: z.string().min(1), url: z.string().url() }`) and `getUserLinks`/`addLink`/`updateLink`/`deleteLink` copying `getUserEducation`/`addEducation`/`updateEducation`/`deleteEducation` structure exactly.
+- `profile.routes.ts`: add `GET/POST /links`, `PUT/DELETE /links/:linkId`, mirroring the education block (53-57).
+- `profile.service.ts`: add `profileLinks: { orderBy: { createdAt: 'asc' } }` to both `getProfile`/`upsertProfile`'s `include`; add `addLink`/`updateLink`/`deleteLink`/`getUserLinks` copying the Education service methods' ownership-check pattern (`findFirst({ id, profile: { userId } })` before update/delete).
 
-### 2.3 New `TailoringWorkspaceComponent` (`frontend/src/app/features/tailoring-workspace/tailoring-workspace.component.ts`)
+### A.5 Seed script fix
+`backend/scripts/seed-jobs.ts:97-99`: replace the inline `linkedin`/`github`/`portfolio` fields in the `prisma.profile.create()` call with a follow-up `prisma.profileLink.createMany()` for the same three sample URLs.
 
-Standalone, signals-based (matching `JobApplicationService`'s pattern).
+### A.6 AI generation + PDF (`backend/src/services/resume.service.ts`)
+Three spots, both AI generation paths currently identical:
+1. Data fetch (`generateForApplication` ~126, `tailorForApplication` ~349): add `include: { profileLinks: true }` to both `prisma.profile.findUnique` calls.
+2. AI output JSON schema (`generateForApplication` ~202-209, `tailorForApplication` ~429-436): replace
+   ```json
+   "contact": { "location": "string", "phone": "string", "email": "string", "linkedin": "string", "github": "string", "portfolio": "string" }
+   ```
+   with
+   ```json
+   "contact": { "location": "string", "phone": "string", "email": "string", "links": [{ "type": "string", "url": "string" }] }
+   ```
+3. PDF renderer (`generatePDF` ~786-801): replace the `contactLines` array (currently `[location, phone, email, linkedin, github, portfolio].filter(Boolean)`) with logic that appends one `"${type}: ${url}"` string per entry in `contact.links`. No back-compat shim for already-generated resumes with the old shape (confirmed acceptable).
 
-- **Header**: job title/company/status badge (reuse status-pill styling), back link, quota-usage hint from `AuthService.getSubscriptionStatus()`.
-- **Action bar**: primary **"Tailor My Resume"** button (calls `tailorResume`); **version-history dropdown** (up to 5 entries, each with a **Restore** action); **"Re-check Fit"** secondary button (surfaced when `matchScore == null`, i.e. imported resumes, or after a section regen makes the score stale); **Export PDF** button.
-- **Split-screen body** (reusing the `.demo-inputs` grid pattern, collapsing to one column at 768px):
-  - Left: read-only Job Description.
-  - Right: resume preview (reusing existing rendering markup), each regenerable block (Summary, Skills, each Experience/Project entry) with an inline **"Regenerate ↻"** button scoped to a per-block busy state.
-- **Fit Analysis card**: pinned near the top of the right pane — score badge, breakdown, suggestions, plus a new missing-skills chip row (reusing the landing page's chip styling). A client-side "dirty" flag (set after any section regen, cleared after the next Tailor/Re-check) drives a "Score may be outdated — Re-check Fit" nudge.
-- **Disclaimer**: the terms.component.ts wording, persistent near the action bar and repeated by the Export button.
-- **Mobile**: same two-tier `768px`/`480px` breakpoint convention as every other feature component.
-- **Debug/admin panel** (rendered only if `AuthService.getUserRole() === 'admin'`): collapsed by default, relocates the model picker, custom-prompt editor, Copy Prompt, Import Resume, and raw-JSON toggle from the old panel — preserves these working dev tools without exposing them to paying users.
+### A.7 Onboarding extraction (Feature-A-relevant part of `resumeParser.service.ts`)
+- `ParsedProfile` (10-17): remove `linkedin`/`github`/`portfolio`, add `links?: Array<{ type: string; url: string }>`.
+- Gemini prompt (123-185): replace the 3 fixed string fields with a `links` array in the schema, plus a rule: "Classify each URL as type LinkedIn/GitHub/Portfolio when obviously matching, otherwise use a short descriptive type (e.g. 'Twitter')."
+- `populateProfile` (213-223 profile-fields section): drop the linkedin/github/portfolio fill-if-empty lines; add a loop creating one `ProfileLink` per parsed link, skipping if a `ProfileLink` with the identical `url` already exists for that `profileId` (exact-string dedup, the one narrow exception).
 
-### 2.4 `frontend/src/app/features/job-application/job-application.component.ts` changes
-Rebuilt as the Kanban board described in **Section 0** above. The entire `resume-panel` block (`:157-318`) and its backing state/methods (`resumesByApp`, `resumePanels`, `generateResume`, `analyzeResume`, `copyPrompt`, etc.) are removed — that functionality now lives in the Tailoring Workspace, reached via each card's **"Tailor →"** link. The status-filter dropdown (`:29-38`) is removed since column position now conveys status. The create/edit reactive form is preserved but moved into a modal/dialog.
+### A.8 Frontend service (`frontend/src/app/core/services/profile.service.ts`)
+Remove `linkedin`/`github`/`portfolio` from the `Profile` interface and `profileUpdateFields` allowlist (58-66); add `ProfileLink` interface and `addLink`/`updateLink`/`deleteLink`/`getUserLinks` methods mirroring the Education wrappers (126-151).
 
-## 3. Sequencing
+### A.9 Frontend component (`frontend/src/app/features/profile/profile.component.ts`)
+Remove the 3 URL inputs (template 51-64, form group 564-566, patch 592-594). Add a "Links" section right after Personal Info, structured exactly like Education (list + one reusable `linkForm` + `isAddingLink`/`isEditingLinkId` flags + add/edit/delete methods copied from the Education equivalents):
+- `type` renders as a `<select>` with LinkedIn/GitHub/Portfolio/Custom; choosing "Custom" reveals a sibling free-text input whose value gets copied into `type` on submit.
+- `url` input with a basic `https?://` pattern validator.
 
-1. **Kanban board** (Section 0) first — zero backend risk (reuses the existing update endpoint and already-in-place `StatusHistory` logging), highly visible UX win, and it's the screen every other piece (the "Tailor →" link) hangs off of. Add `@angular/cdk`, build the board with the "Move to..." dropdown fallback before drag-and-drop polish, then layer in drag-and-drop, then the mobile snap-scroll/tab treatment.
-2. Prisma migration (`missingSkills` column) — fast, additive, unblocks everything else in the Tailoring Workspace.
-3. Backend `tailorForApplication` + controller + route, curl-tested in isolation before any UI work (highest-risk, most novel piece).
-4. Basic workspace shell: route + component skeleton wired to `tailorResume`/`listResumes`/`getApplication`, split-screen + fit-analysis card, no section regen or version dropdown yet (always show newest) — gets to a demoable end-to-end MVP fast. Wire the Kanban card's "Tailor →" link to it here.
-5. Section regeneration: backend endpoint + version-guard, then frontend per-section buttons and "score may be outdated" hint.
-6. Version-history dropdown + restore endpoint + 5-version cap/pruning logic (both in `tailorForApplication` and `restoreResumeVersion`).
-7. PDF export + AI disclaimer wiring (endpoint already exists; sequenced late so it's verified against the final, post-section-regen resume shape).
-8. Debug/admin panel relocation (model picker, prompt editor, copy-prompt, import, raw toggle) — moved once the primary flow is proven, so a working fallback exists throughout development.
-9. Strip the last remnants of the old inline resume-panel code once the workspace covers every capability it offered.
+---
 
-## 4. Verification plan
+## Feature B: Re-runnable Onboarding with Review-Before-Commit
 
-0. **Kanban board**: dragging a card to a different column persists the new status (reload confirms it) and creates a new `StatusHistory` row; the "Move to..." dropdown produces the same result without a drag; creating a new application lands it in Draft; on a viewport <768px, columns snap-scroll one at a time, the status-pill tabs jump directly to a column, and both drag and the dropdown fallback still work; each card's "Tailor →" link opens the correct application's workspace.
-1. **Merged call**: create an application with a job description, call the tailor endpoint, confirm a single `201` response containing content + matchScore + scoreBreakdown + suggestions + missingSkills, and confirm via logs that exactly one Gemini call was made.
-2. **Quota correctness across all three AI actions**: free-tier flips `freeGenerationUsed` after one tailor call and is blocked on a second; subscriber's `aiGenerations` increments by exactly 1 per tailor call, +1 per Re-check Fit, +1 per section regen (3 total after one of each).
-3. **Free-tier sees analysis**: after their one tailor call, confirm score/breakdown/suggestions/missing-skills chips render with no paywall gate.
-4. **Section regen doesn't create a spurious version**: version number and row count unchanged after a section regen; only `content`/`updatedAt` change.
-5. **Section-regen version guard**: attempting section regen on a non-latest version is rejected.
-6. **Standalone Re-check Fit** works on an imported resume (no tailor call happened).
-7. **Version cap**: after 6 tailor/restore calls on one application, confirm only 5 versions remain and the oldest was pruned.
-8. **Restore**: restoring an older version creates a new version with that content and its original scores intact.
-9. **Cooldowns**: verify 60s tailor cooldown, 30s section-regen cooldown, and that a tailor call immediately after a section regen is not falsely throttled (proves separate cooldown maps).
-10. **Mobile**: workspace collapses to a single column at 768px (JD above resume), tightens further at 480px, no horizontal scroll, 44px touch targets.
-11. **Old panel removal**: Kanban cards still support Edit/Delete via the overflow menu with no console errors; the "Tailor →" link deep-links to the correct application's workspace.
-12. **Debug panel gating**: non-admin users see no model picker/prompt editor/copy-prompt/import/raw-toggle anywhere in the workspace; admins do, and the legacy actions still function.
-13. **PDF export**: exported PDF reflects the latest patched content (post section-regen), not a stale version.
+### B.1 Endpoint split
+- `POST /profile/parse-resume` — **same path, new behavior**: parse-only (`extractText` + `parseWithGemini` + skill-dedup precompute), returns the structured parsed JSON, **no DB write**. Smallest-diff option since the URL and semantics ("parse") don't change.
+- `POST /profile/commit-resume-data` — **new endpoint**, JSON body (no multer), accepts the possibly-edited/filtered parsed data, calls `populateProfile` directly, returns the aggregate-count result **plus the actual created record IDs** (needed for the highlight feature — see B.5a).
 
-## Notes / deferred items (not part of this phase)
+### B.2 Backend service changes (`resumeParser.service.ts`)
+- New `precomputeSkillStatus(userId, skills: string[])`: one `prisma.userSkill.findMany({ where: { userId }, include: { skill: true } })` call, then in-memory **case-insensitive** (`.toLowerCase()`) comparison against parsed skill names — matches the DB's `utf8mb4_unicode_ci` collation exactly. Returns `{ new: string[], alreadyHave: string[] }`.
+- New `parseOnly(buffer, mimeType, userId)`: `extractText` → `parseWithGemini` → `precomputeSkillStatus`, returns the full structured object (profile incl. `links`, education[], experience[], projects[], `skills: {new, alreadyHave}`, certifications[]) with no DB writes.
+- `populateProfile` (203-340): keep as the reused commit engine; two additions:
+  1. `ParseResult` interface (61-68) gains ID arrays alongside the existing counts: `educationIds`, `experienceIds`, `projectIds`, `certificationIds`, `newUserSkillIds`, `linkIds` (all `number[]`) — push each created record's `id` into the matching array right where it's already created in the existing for-loops.
+  2. Add the `ProfileLink` creation loop from A.7 (exact-URL dedup).
+- Delete `parseAndPopulate` (345-356) — its two halves are now independently reachable via `parseOnly` and `populateProfile`.
+- `backend/src/index.ts:34`: bump `express.json()` to an explicit higher limit (e.g. `express.json({ limit: '2mb' })`) as a cheap proactive safeguard for the commit payload.
 
-- Structured-output hardening (Gemini SDK's native `responseMimeType`/`responseSchema` instead of regex-stripping ```json fences) is worth evaluating during implementation of the larger merged schema, but isn't blocking for v1 — the existing regex approach can ship the first cut.
-- In-memory cooldown Maps (all three) don't survive a restart or scale past one backend instance — a pre-existing limitation, not introduced by this work; flag if/when the backend ever runs more than one instance.
-- The exported PDF still uses today's single hardcoded PDFKit template — out of scope here, but worth revisiting given this is the core paid feature.
-- Job-tracking UX (StatusHistory timeline, dashboard analytics) remains a cheap, ready-to-build follow-up for a later phase — the data is already being logged, just not surfaced.
+### B.3 Backend controller (`resumeParser.controller.ts`)
+- `parseResume`: keep all existing auth/file/type/size validation (12-35), change the call to `parseOnly(...)`, response becomes `{ message, parsed }`.
+- New `commitParsedResume`: auth check, loose Zod validation of the body shape (just enough to reject malformed payloads, not to re-validate resume content quality), calls `populateProfile(userId, body)`, responds `{ message, result }` (now including the ID arrays from B.2).
+
+### B.4 Routes (`profile.routes.ts`)
+```ts
+router.post('/parse-resume', resumeUpload.single('resume'), parseResume); // now parse-only
+router.post('/commit-resume-data', commitParsedResume); // new, JSON body
+```
+
+### B.5 Frontend (`frontend/src/app/features/onboarding/onboarding.component.ts`)
+- `Stage`: add `'review'` between `'processing'` and `'done'`.
+- `upload()` (375-414): on success, store the parsed payload in a `parsedData` signal and move to `'review'` instead of `'done'`.
+- **New `'review'` stage**: one card list per entity type (Profile fields incl. links / Education / Experience+bullets / Projects+bullets / Skills / Certifications), **remove-only** — each item has just a Remove (×) button that splices it from the local in-memory array (no edit UI, per decision 3). Skills render only the `new` bucket (never `alreadyHave`). A per-section count, plus a "Discard / Start Over" link (extends existing `reset()`) and a top-level "Add to My Profile" button that reassembles the (filtered) arrays into the commit shape and POSTs to `/profile/commit-resume-data`.
+- On commit success: call the new highlight service (B.5a) with the returned ID arrays, then proceed to the existing `'done'` stage (unchanged shape/copy).
+
+### B.5a New: temporary "recently added" highlight (per refined decision 3)
+- New `frontend/src/app/core/services/recently-added.service.ts`: a small signal-based store, `Record<EntityType, Set<number>>` with `markAdded(type, ids)`, `isNew(type, id): boolean`, `clear(type)`.
+- `OnboardingComponent`'s commit-success handler calls `markAdded('education', result.educationIds)` etc. for every entity type in the response.
+- Destination pages (`profile.component.ts` for Education/Links/profile fields, `experience.component.ts`, `project.component.ts`, `certification.component.ts`) each inject the service, check `isNew(type, item.id)` when rendering their `@for` list, and apply a highlight CSS class (e.g. a colored left-border + small "New" badge) to matching items. Each component calls `clear(type)` in `ngOnDestroy` so the highlight is visible for that one visit after import, then disappears — a genuinely "temporary" indicator, not a persistent flag.
+- Skills: track `newUserSkillIds` (the `UserSkill.id`, not `Skill.id`) since that's the per-user row the Profile page's skill list actually renders.
+
+### B.6 Nav entry point (`frontend/src/app/app.html`)
+Add `<a routerLink="/onboarding" ...>Import Resume</a>` to the authenticated nav (11-19), placed after "Certifications" and before "Jobs".
+
+### B.7 On-page copy tweak
+Update the onboarding component's headline/subtitle (currently first-time-only framing, e.g. "Welcome to RoleFit... we'll fill your profile in seconds") to something re-run-neutral, e.g. "Import a resume to add new details to your profile" — cheap, meaningfully improves the repeat-use experience. Route/component name stays `onboarding`/`OnboardingComponent` (decision 4, minimal diff).
+
+---
+
+## Sequencing
+
+1. A.1 schema + migration + `prisma generate`.
+2. A.2-A.6 backend (controller/route/service/seed-script fix/resume.service.ts + PDF).
+3. A.7 — the Feature-A-relevant part of `resumeParser.service.ts` (ParsedProfile/prompt/links-merge).
+4. A.8-A.9 frontend (profile service + profile.component.ts link UI).
+5. B.2-B.4 backend (parse/commit split, skill precompute, ID-tracking, express.json limit) — built against the already-updated links shape from step 3.
+6. B.5-B.7 frontend (review stage, highlight service, nav link, copy tweak).
+
+Reasoning for A-before-B: `resumeParser.service.ts`'s extraction/merge logic and the review screen's link UI both need to target the final `ProfileLink` shape — building B first would mean reworking this file and UI twice.
+
+## Verification
+
+**Feature A:**
+1. Add a LinkedIn link, a GitHub link, and a Custom-type link (e.g. "Twitter") on `/profile`; refresh; confirm all three persist with correct type labels.
+2. Edit a link's URL and delete another; confirm both operations apply correctly and survive refresh.
+3. Generate a tailored resume for an existing job application; open the PDF and confirm the contact section lists each link as `Type: url`.
+
+**Feature B:**
+1. Reach onboarding via the new "Import Resume" nav link (not just post-registration) at any time.
+2. Upload a resume; confirm it lands on the review screen with **nothing yet in the DB** (spot-check `/profile`/`/experience`/`/projects` in another tab before clicking commit).
+3. Remove one Experience entry on the review screen, then commit; confirm the removed entry never appears in `/experience`, and that `/experience` shows a temporary highlight on the newly-added entries that were kept, which disappears after navigating away and back.
+4. Re-run the same upload with the same resume file: confirm Experience/Projects/Certifications duplicate (expected, dedup intentionally descoped), while Skills and Links with identical values do **not** duplicate.
+5. Confirm "Discard / Start Over" fully resets state and a subsequent run works cleanly.
+6. Confirm a large-ish parsed payload (resume with many bullets) doesn't hit the `express.json()` size limit on commit.

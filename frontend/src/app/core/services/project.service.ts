@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { extractErrorMessage } from '../utils/error.util';
 
 const API_URL = `${environment.apiUrl}/projects`;
 
@@ -72,7 +73,7 @@ export class ProjectService {
       this.projectsSignal.set(projects);
       return projects;
     } catch (error: any) {
-      this.errorSignal.set(this.toErrorMessage(error, 'Failed to load projects'));
+      this.errorSignal.set(extractErrorMessage(error, 'Failed to load projects'));
       throw error;
     } finally {
       this.loadingSignal.set(false);
@@ -96,7 +97,7 @@ export class ProjectService {
       this.projectsSignal.update((list) => [...list, project].sort((a, b) => a.order - b.order));
       return project;
     } catch (error: any) {
-      this.errorSignal.set(this.toErrorMessage(error, 'Failed to create project'));
+      this.errorSignal.set(extractErrorMessage(error, 'Failed to create project'));
       throw error;
     } finally {
       this.loadingSignal.set(false);
@@ -279,17 +280,5 @@ export class ProjectService {
 
   clearError(): void {
     this.errorSignal.set(null);
-  }
-
-  private toErrorMessage(error: any, fallback: string): string {
-    const raw = error?.error?.error ?? error?.error?.message ?? error?.message ?? fallback;
-    if (typeof raw === 'string') return raw;
-    if (Array.isArray(raw)) return 'Please check the form fields and try again.';
-    if (typeof raw === 'object') return 'Something went wrong. Please try again.';
-    try {
-      return JSON.stringify(raw);
-    } catch {
-      return fallback;
-    }
   }
 }

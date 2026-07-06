@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { extractErrorMessage } from '../../core/utils/error.util';
 
 @Component({
   selector: 'app-forgot-password',
@@ -208,7 +209,7 @@ export class ForgotPasswordComponent {
       },
       error: (error) => {
         this.isLoading.set(false);
-        this.errorMessage.set(error.error?.error || 'Something went wrong. Please try again.');
+        this.errorMessage.set(extractErrorMessage(error));
       }
     });
   }

@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators, type AbstractControl, type ValidationErrors } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { extractErrorMessage } from '../../core/utils/error.util';
 
 function passwordsMatchValidator(control: AbstractControl): ValidationErrors | null {
   const password = control.get('newPassword')?.value;
@@ -250,7 +251,7 @@ export class ResetPasswordComponent {
       },
       error: (error) => {
         this.isLoading.set(false);
-        this.errorMessage.set(error.error?.error || 'Failed to reset password. The link may have expired.');
+        this.errorMessage.set(extractErrorMessage(error, 'Failed to reset password. The link may have expired.'));
       }
     });
   }

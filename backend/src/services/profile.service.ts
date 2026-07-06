@@ -10,6 +10,9 @@ export class ProfileService {
         educations: {
           orderBy: { startDate: 'desc' },
         },
+        profileLinks: {
+          orderBy: { createdAt: 'asc' },
+        },
         user: {
           select: { id: true, email: true, name: true, role: true },
         },
@@ -38,6 +41,9 @@ export class ProfileService {
       include: {
         educations: {
           orderBy: { startDate: 'desc' },
+        },
+        profileLinks: {
+          orderBy: { createdAt: 'asc' },
         },
         user: {
           select: { id: true, email: true, name: true, role: true },
@@ -122,6 +128,82 @@ export class ProfileService {
     });
 
     return education;
+  }
+
+  // Add link
+  async addLink(
+    userId: number,
+    data: Record<string, unknown>
+  ) {
+    const profile = await prisma.profile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new Error('Profile not found. Create profile first.');
+    }
+
+    const link = await prisma.profileLink.create({
+      data: {
+        profileId: profile.id,
+        ...data,
+      } as any,
+    });
+
+    return link;
+  }
+
+  // Update link
+  async updateLink(linkId: number, userId: number, data: Record<string, unknown>) {
+    const existing = await prisma.profileLink.findFirst({
+      where: { id: linkId, profile: { userId } },
+    });
+
+    if (!existing) {
+      throw new Error('Link not found');
+    }
+
+    const link = await prisma.profileLink.update({
+      where: { id: linkId },
+      data,
+    });
+
+    return link;
+  }
+
+  // Delete link
+  async deleteLink(linkId: number, userId: number) {
+    const existing = await prisma.profileLink.findFirst({
+      where: { id: linkId, profile: { userId } },
+    });
+
+    if (!existing) {
+      throw new Error('Link not found');
+    }
+
+    await prisma.profileLink.delete({
+      where: { id: linkId },
+    });
+
+    return { success: true };
+  }
+
+  // Get all links for user
+  async getUserLinks(userId: number) {
+    const profile = await prisma.profile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
+
+    const links = await prisma.profileLink.findMany({
+      where: { profileId: profile.id },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return links;
   }
 
   // Add skill to user

@@ -9,9 +9,7 @@ import { config } from "../config.js";
 // ---------------------------------------------------------------------------
 interface ParsedProfile {
   phone?: string;
-  linkedin?: string;
-  github?: string;
-  portfolio?: string;
+  links?: Array<{ type: string; url: string }>;
   location?: string;
   summary?: string;
 }
@@ -58,13 +56,32 @@ interface ParsedResume {
   certifications: Array<{ title: string; description?: string }>;
 }
 
+// Shape returned to the frontend for review, before anything is committed.
+// Skills are split into "new" (actionable) vs "alreadyHave" (a no-op if added)
+// so the review screen only needs to show the former.
+export interface ParsedResumePreview {
+  profile: ParsedProfile;
+  education: ParsedEducation[];
+  experience: ParsedExperience[];
+  projects: ParsedProject[];
+  skills: { new: string[]; alreadyHave: string[] };
+  certifications: Array<{ title: string; description?: string }>;
+}
+
 export interface ParseResult {
   educationAdded: number;
   experienceAdded: number;
   projectsAdded: number;
   skillsAdded: number;
   certificationsAdded: number;
+  linksAdded: number;
   profileUpdated: boolean;
+  educationIds: number[];
+  experienceIds: number[];
+  projectIds: number[];
+  certificationIds: number[];
+  newUserSkillIds: number[];
+  linkIds: number[];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,9 +143,7 @@ Output this exact JSON shape (omit fields that are not present in the resume):
 {
   "profile": {
     "phone": "string",
-    "linkedin": "string (full URL or username)",
-    "github": "string (full URL or username)",
-    "portfolio": "string",
+    "links": [{ "type": "LinkedIn | GitHub | Portfolio | <custom short label>", "url": "string (full URL)" }],
     "location": "string (city, country)",
     "summary": "string (professional summary or objective)"
   },
@@ -180,6 +195,7 @@ Rules:
 - skills should be individual skill names (e.g. "Python", "React", "AWS"), not categories.
 - If a section is absent from the resume, use an empty array [].
 - profile fields are optional — omit rather than returning null.
+- Classify each URL/handle found in contact or social-links info as type "LinkedIn", "GitHub", or "Portfolio" when it obviously matches, otherwise use a short descriptive type (e.g. "Twitter", "Behance").
 
 Resume text:
 ${text.slice(0, 12000)}`;
@@ -207,7 +223,14 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
     projectsAdded: 0,
     skillsAdded: 0,
     certificationsAdded: 0,
-    profileUpdated: false
+    linksAdded: 0,
+    profileUpdated: false,
+    educationIds: [],
+    experienceIds: [],
+    projectIds: [],
+    certificationIds: [],
+    newUserSkillIds: [],
+    linkIds: []
   };
 
   // --- Profile fields: only fill in fields that are currently empty ---
@@ -216,9 +239,6 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
 
   const p = parsed.profile ?? {};
   if (p.phone    && !existing?.phone)    profileUpdate.phone    = p.phone;
-  if (p.linkedin && !existing?.linkedin) profileUpdate.linkedin = p.linkedin;
-  if (p.github   && !existing?.github)   profileUpdate.github   = p.github;
-  if (p.portfolio && !existing?.portfolio) profileUpdate.portfolio = p.portfolio;
   if (p.location && !existing?.location) profileUpdate.location = p.location;
   if (p.summary  && !existing?.summary)  profileUpdate.summary  = p.summary;
 
@@ -229,12 +249,27 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
   });
   result.profileUpdated = Object.keys(profileUpdate).length > 0;
 
+  // --- Links: additive, but skip exact-URL duplicates ---
+  for (const link of p.links ?? []) {
+    if (!link?.url) continue;
+    const existingLink = await prisma.profileLink.findFirst({
+      where: { profileId: profile.id, url: link.url }
+    });
+    if (!existingLink) {
+      const created = await prisma.profileLink.create({
+        data: { profileId: profile.id, type: link.type || "Link", url: link.url }
+      });
+      result.linkIds.push(created.id);
+      result.linksAdded++;
+    }
+  }
+
   // --- Education ---
   for (const edu of parsed.education ?? []) {
     if (!edu.institution || !edu.degree) continue;
     const startDate = parseDate(edu.startDate) ?? new Date("2000-01-01");
     const endDate = parseDate(edu.endDate);
-    await prisma.education.create({
+    const createdEdu = await prisma.education.create({
       data: {
         profileId: profile.id,
         institution: edu.institution,
@@ -246,6 +281,7 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
         description: edu.description ?? null
       }
     });
+    result.educationIds.push(createdEdu.id);
     result.educationAdded++;
   }
 
@@ -275,6 +311,7 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
         });
       }
     }
+    result.experienceIds.push(experience.id);
     result.experienceAdded++;
   }
 
@@ -305,6 +342,7 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
         });
       }
     }
+    result.projectIds.push(project.id);
     result.projectsAdded++;
   }
 
@@ -322,7 +360,8 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
       where: { userId_skillId: { userId, skillId: skill.id } }
     });
     if (!existing) {
-      await prisma.userSkill.create({ data: { userId, skillId: skill.id } });
+      const createdUserSkill = await prisma.userSkill.create({ data: { userId, skillId: skill.id } });
+      result.newUserSkillIds.push(createdUserSkill.id);
       result.skillsAdded++;
     }
   }
@@ -330,9 +369,10 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
   // --- Certifications ---
   for (const cert of parsed.certifications ?? []) {
     if (!cert.title?.trim()) continue;
-    await prisma.certification.create({
+    const createdCert = await prisma.certification.create({
       data: { userId, title: cert.title.trim(), description: cert.description ?? null }
     });
+    result.certificationIds.push(createdCert.id);
     result.certificationsAdded++;
   }
 
@@ -340,17 +380,62 @@ export async function populateProfile(userId: number, parsed: ParsedResume): Pro
 }
 
 // ---------------------------------------------------------------------------
-// Public entry point — called by the controller
+// Splits parsed skills into "new" (would actually create a UserSkill row) vs
+// "alreadyHave" (a no-op if added) — compared case-insensitively to match
+// this DB's utf8mb4_unicode_ci collation, so the review screen's bucketing
+// agrees with what populateProfile's skill.upsert will actually do.
 // ---------------------------------------------------------------------------
-export async function parseAndPopulate(
+async function precomputeSkillStatus(
   userId: number,
+  skills: string[]
+): Promise<{ new: string[]; alreadyHave: string[] }> {
+  const existingUserSkills = await prisma.userSkill.findMany({
+    where: { userId },
+    include: { skill: true }
+  });
+  const existingNames = new Set(existingUserSkills.map((us) => us.skill.name.toLowerCase()));
+
+  const newSkills: string[] = [];
+  const alreadyHave: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of skills ?? []) {
+    const name = raw?.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (existingNames.has(key)) {
+      alreadyHave.push(name);
+    } else {
+      newSkills.push(name);
+    }
+  }
+  return { new: newSkills, alreadyHave };
+}
+
+// ---------------------------------------------------------------------------
+// Public entry point — parse only, no DB writes. The frontend renders the
+// result for the user to review/edit/remove before calling populateProfile
+// (via the separate commit endpoint) with the (possibly filtered) data.
+// ---------------------------------------------------------------------------
+export async function parseOnly(
   buffer: Buffer,
-  mimeType: string
-): Promise<ParseResult> {
+  mimeType: string,
+  userId: number
+): Promise<ParsedResumePreview> {
   const text = await extractText(buffer, mimeType);
   if (text.trim().length < 50) {
     throw new Error("Could not extract enough text from the file. Make sure the PDF is not scanned/image-based.");
   }
   const parsed = await parseWithGemini(text);
-  return populateProfile(userId, parsed);
+  const skills = await precomputeSkillStatus(userId, parsed.skills ?? []);
+
+  return {
+    profile: parsed.profile ?? {},
+    education: parsed.education ?? [],
+    experience: parsed.experience ?? [],
+    projects: parsed.projects ?? [],
+    skills,
+    certifications: parsed.certifications ?? []
+  };
 }

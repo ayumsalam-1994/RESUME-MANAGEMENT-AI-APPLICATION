@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { firstValueFrom } from 'rxjs';
+import { extractErrorMessage } from '../utils/error.util';
 
 export interface Certification {
   id: number;
@@ -40,7 +41,7 @@ export class CertificationService {
       this.certificationsSignal.set(items);
       return items;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to load certifications';
+      const message = extractErrorMessage(error, 'Failed to load certifications');
       this.errorSignal.set(message);
       throw error;
     } finally {
@@ -59,7 +60,7 @@ export class CertificationService {
       this.certificationsSignal.update((list) => [created, ...list]);
       return created;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to create certification';
+      const message = extractErrorMessage(error, 'Failed to create certification');
       this.errorSignal.set(message);
       throw error;
     } finally {

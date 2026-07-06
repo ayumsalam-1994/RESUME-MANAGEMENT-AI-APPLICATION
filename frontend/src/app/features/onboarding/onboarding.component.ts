@@ -1,7 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { RecentlyAddedService } from '../../core/services/recently-added.service';
 
 interface ParseResult {
   educationAdded: number;
@@ -9,26 +11,83 @@ interface ParseResult {
   projectsAdded: number;
   skillsAdded: number;
   certificationsAdded: number;
+  linksAdded: number;
   profileUpdated: boolean;
+  educationIds: number[];
+  experienceIds: number[];
+  projectIds: number[];
+  certificationIds: number[];
+  newUserSkillIds: number[];
+  linkIds: number[];
 }
 
-type Stage = 'upload' | 'processing' | 'done' | 'error';
+interface ParsedLink { type: string; url: string; }
+interface ParsedProfilePreview {
+  phone?: string;
+  location?: string;
+  summary?: string;
+  links?: ParsedLink[];
+}
+interface ParsedEducationPreview {
+  institution: string;
+  degree: string;
+  field?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+}
+interface ParsedExperiencePreview {
+  company: string;
+  position: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+  bullets?: string[];
+}
+interface ParsedProjectPreview {
+  title: string;
+  summary?: string;
+  description?: string;
+  role?: string;
+  techStack?: string[];
+  startDate?: string;
+  endDate?: string;
+  url?: string;
+  bullets?: string[];
+}
+interface ParsedCertificationPreview { title: string; description?: string; }
+
+interface ParsedResumePreview {
+  profile: ParsedProfilePreview;
+  education: ParsedEducationPreview[];
+  experience: ParsedExperiencePreview[];
+  projects: ParsedProjectPreview[];
+  skills: { new: string[]; alreadyHave: string[] };
+  certifications: ParsedCertificationPreview[];
+}
+
+type Stage = 'upload' | 'processing' | 'review' | 'done' | 'error';
 
 @Component({
   selector: 'app-onboarding',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   template: `
     <div class="onboarding-container">
-      <div class="onboarding-card">
-        <div class="skip-row">
-          <a routerLink="/dashboard" class="skip-link">Skip for now →</a>
-        </div>
+      <div class="onboarding-card" [class.wide]="stage() === 'review'">
+        @if (stage() !== 'review') {
+          <div class="skip-row">
+            <a routerLink="/dashboard" class="skip-link">Skip for now →</a>
+          </div>
 
-        <div class="brand">
-          <h1>Welcome to RoleFit</h1>
-          <p class="subtitle">Upload your existing resume and we'll fill your profile in seconds.</p>
-        </div>
+          <div class="brand">
+            <h1>Import Resume</h1>
+            <p class="subtitle">Upload a resume to add new details to your profile. Nothing is saved until you confirm.</p>
+          </div>
+        }
 
         <!-- UPLOAD STAGE -->
         @if (stage() === 'upload') {
@@ -81,12 +140,131 @@ type Stage = 'upload' | 'processing' | 'done' | 'error';
           </div>
         }
 
+        <!-- REVIEW STAGE -->
+        @if (stage() === 'review' && parsedData()) {
+          <div class="review">
+            <div class="review-header">
+              <h2>Review before adding</h2>
+              <p class="result-subtitle">Remove anything you don't want. Nothing is saved yet.</p>
+            </div>
+
+            <div class="review-section">
+              <h3>Profile details</h3>
+              @if (parsedData()!.profile.phone) {
+                <label class="review-check">
+                  <input type="checkbox" [(ngModel)]="includePhone" />
+                  Phone: {{ parsedData()!.profile.phone }}
+                </label>
+              }
+              @if (parsedData()!.profile.location) {
+                <label class="review-check">
+                  <input type="checkbox" [(ngModel)]="includeLocation" />
+                  Location: {{ parsedData()!.profile.location }}
+                </label>
+              }
+              @if (parsedData()!.profile.summary) {
+                <label class="review-check">
+                  <input type="checkbox" [(ngModel)]="includeSummary" />
+                  Summary: {{ parsedData()!.profile.summary }}
+                </label>
+              }
+              @if (!parsedData()!.profile.phone && !parsedData()!.profile.location && !parsedData()!.profile.summary) {
+                <p class="muted">Nothing new found.</p>
+              }
+              <p class="hint">Only fills fields you haven't already set — never overwrites existing profile info.</p>
+            </div>
+
+            @if (links.length > 0) {
+              <div class="review-section">
+                <h3>Links ({{ links.length }})</h3>
+                @for (link of links; track $index) {
+                  <div class="review-item">
+                    <span>{{ link.type }}: {{ link.url }}</span>
+                    <button class="remove-btn" (click)="removeAt(links, $index)">Remove</button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (education.length > 0) {
+              <div class="review-section">
+                <h3>Education ({{ education.length }})</h3>
+                @for (edu of education; track $index) {
+                  <div class="review-item">
+                    <span>{{ edu.degree }} in {{ edu.field }} — {{ edu.institution }}</span>
+                    <button class="remove-btn" (click)="removeAt(education, $index)">Remove</button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (experience.length > 0) {
+              <div class="review-section">
+                <h3>Experience ({{ experience.length }})</h3>
+                @for (exp of experience; track $index) {
+                  <div class="review-item">
+                    <span>{{ exp.position }} @ {{ exp.company }}</span>
+                    <button class="remove-btn" (click)="removeAt(experience, $index)">Remove</button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (projects.length > 0) {
+              <div class="review-section">
+                <h3>Projects ({{ projects.length }})</h3>
+                @for (proj of projects; track $index) {
+                  <div class="review-item">
+                    <span>{{ proj.title }}</span>
+                    <button class="remove-btn" (click)="removeAt(projects, $index)">Remove</button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (newSkills.length > 0) {
+              <div class="review-section">
+                <h3>New Skills ({{ newSkills.length }})</h3>
+                <div class="chip-row">
+                  @for (skill of newSkills; track $index) {
+                    <span class="chip">
+                      {{ skill }}
+                      <button class="chip-remove" (click)="removeAt(newSkills, $index)">×</button>
+                    </span>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (certifications.length > 0) {
+              <div class="review-section">
+                <h3>Certifications ({{ certifications.length }})</h3>
+                @for (cert of certifications; track $index) {
+                  <div class="review-item">
+                    <span>{{ cert.title }}</span>
+                    <button class="remove-btn" (click)="removeAt(certifications, $index)">Remove</button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (errorMessage()) {
+              <div class="error-box">{{ errorMessage() }}</div>
+            }
+
+            <button class="primary-btn" [disabled]="isUploading()" (click)="commit()">
+              {{ isUploading() ? 'Adding...' : 'Add to My Profile' }}
+            </button>
+            <button class="secondary-link as-button" (click)="reset()">Discard / Start Over</button>
+          </div>
+        }
+
         <!-- DONE STAGE -->
         @if (stage() === 'done' && parseResult()) {
           <div class="result">
             <div class="result-icon">✓</div>
-            <h2>Profile populated!</h2>
-            <p class="result-subtitle">Here's what we found in your resume:</p>
+            <h2>Profile updated!</h2>
+            <p class="result-subtitle">Here's what was added:</p>
 
             <div class="result-grid">
               @if (parseResult()!.experienceAdded > 0) {
@@ -117,6 +295,12 @@ type Stage = 'upload' | 'processing' | 'done' | 'error';
                 <div class="result-item">
                   <span class="result-count">{{ parseResult()!.certificationsAdded }}</span>
                   <span class="result-label">Certifications</span>
+                </div>
+              }
+              @if (parseResult()!.linksAdded > 0) {
+                <div class="result-item">
+                  <span class="result-count">{{ parseResult()!.linksAdded }}</span>
+                  <span class="result-label">Links</span>
                 </div>
               }
             </div>
@@ -159,6 +343,12 @@ type Stage = 'upload' | 'processing' | 'done' | 'error';
       width: 100%;
       max-width: 480px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+
+    .onboarding-card.wide {
+      max-width: 640px;
+      max-height: 88vh;
+      overflow-y: auto;
     }
 
     .skip-row {
@@ -252,6 +442,15 @@ type Stage = 'upload' | 'processing' | 'done' | 'error';
 
     .secondary-link:hover { text-decoration: underline; }
 
+    .secondary-link.as-button {
+      width: 100%;
+      background: none;
+      border: none;
+      margin-top: 0.75rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
     /* Processing */
     .processing {
       text-align: center;
@@ -272,6 +471,63 @@ type Stage = 'upload' | 'processing' | 'done' | 'error';
 
     .processing-label { font-weight: 600; color: #444; margin: 0 0 0.25rem; }
     .processing-hint { color: #888; font-size: 0.85rem; margin: 0; }
+
+    /* Review */
+    .review-header h2 { margin: 0 0 0.25rem; color: #333; }
+    .review-section {
+      margin-bottom: 1.25rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #eee;
+    }
+    .review-section h3 { margin: 0 0 0.5rem; font-size: 0.95rem; color: #444; }
+    .review-check {
+      display: block;
+      font-size: 0.9rem;
+      color: #444;
+      margin-bottom: 0.4rem;
+    }
+    .review-check input { margin-right: 0.4rem; }
+    .review-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0;
+      font-size: 0.9rem;
+      color: #444;
+    }
+    .remove-btn {
+      background: #fee;
+      color: #c33;
+      border: none;
+      border-radius: 6px;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: #f0f4ff;
+      color: #4c51bf;
+      border-radius: 14px;
+      padding: 0.25rem 0.4rem 0.25rem 0.7rem;
+      font-size: 0.85rem;
+    }
+    .chip-remove {
+      background: none;
+      border: none;
+      color: #4c51bf;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 0.2rem;
+    }
+    .hint { font-size: 0.78rem; color: #999; margin: 0.4rem 0 0; }
+    .muted { color: #999; font-size: 0.9rem; }
 
     /* Result */
     .result { text-align: center; }
@@ -324,6 +580,7 @@ type Stage = 'upload' | 'processing' | 'done' | 'error';
 export class OnboardingComponent {
   private http = inject(HttpClient);
   private router = inject(Router);
+  private recentlyAdded = inject(RecentlyAddedService);
 
   stage = signal<Stage>('upload');
   selectedFile = signal<File | null>(null);
@@ -332,6 +589,18 @@ export class OnboardingComponent {
   processingMessage = signal('Extracting text from your resume...');
   errorMessage = signal('');
   parseResult = signal<ParseResult | null>(null);
+  parsedData = signal<ParsedResumePreview | null>(null);
+
+  // Local mutable copies the review screen can remove items from
+  links: ParsedLink[] = [];
+  education: ParsedEducationPreview[] = [];
+  experience: ParsedExperiencePreview[] = [];
+  projects: ParsedProjectPreview[] = [];
+  newSkills: string[] = [];
+  certifications: ParsedCertificationPreview[] = [];
+  includePhone = true;
+  includeLocation = true;
+  includeSummary = true;
 
   onDragOver(event: DragEvent): void {
     event.preventDefault();
@@ -372,18 +641,23 @@ export class OnboardingComponent {
     this.selectedFile.set(file);
   }
 
+  removeAt<T>(list: T[], index: number): void {
+    list.splice(index, 1);
+  }
+
   upload(): void {
     const file = this.selectedFile();
     if (!file) return;
 
     this.isUploading.set(true);
     this.stage.set('processing');
+    this.errorMessage.set('');
 
     // Cycle through messages so the user knows something is happening
     const messages = [
       'Extracting text from your resume...',
       'Analysing with AI...',
-      'Populating your profile...'
+      'Preparing for review...'
     ];
     let msgIndex = 0;
     const msgInterval = setInterval(() => {
@@ -394,14 +668,23 @@ export class OnboardingComponent {
     const formData = new FormData();
     formData.append('resume', file);
 
-    this.http.post<{ message: string; result: ParseResult }>(
+    this.http.post<{ message: string; parsed: ParsedResumePreview }>(
       `${environment.apiUrl}/profile/parse-resume`,
       formData
     ).subscribe({
       next: (res) => {
         clearInterval(msgInterval);
-        this.parseResult.set(res.result);
-        this.stage.set('done');
+        this.parsedData.set(res.parsed);
+        this.links = [...(res.parsed.profile.links || [])];
+        this.education = [...res.parsed.education];
+        this.experience = [...res.parsed.experience];
+        this.projects = [...res.parsed.projects];
+        this.newSkills = [...res.parsed.skills.new];
+        this.certifications = [...res.parsed.certifications];
+        this.includePhone = true;
+        this.includeLocation = true;
+        this.includeSummary = true;
+        this.stage.set('review');
         this.isUploading.set(false);
       },
       error: (err) => {
@@ -413,11 +696,62 @@ export class OnboardingComponent {
     });
   }
 
+  commit(): void {
+    const parsed = this.parsedData();
+    if (!parsed) return;
+
+    this.isUploading.set(true);
+    this.errorMessage.set('');
+
+    const payload = {
+      profile: {
+        phone: this.includePhone ? parsed.profile.phone : undefined,
+        location: this.includeLocation ? parsed.profile.location : undefined,
+        summary: this.includeSummary ? parsed.profile.summary : undefined,
+        links: this.links
+      },
+      education: this.education,
+      experience: this.experience,
+      projects: this.projects,
+      skills: this.newSkills,
+      certifications: this.certifications
+    };
+
+    this.http.post<{ message: string; result: ParseResult }>(
+      `${environment.apiUrl}/profile/commit-resume-data`,
+      payload
+    ).subscribe({
+      next: (res) => {
+        this.recentlyAdded.markAdded('education', res.result.educationIds);
+        this.recentlyAdded.markAdded('experience', res.result.experienceIds);
+        this.recentlyAdded.markAdded('projects', res.result.projectIds);
+        this.recentlyAdded.markAdded('certifications', res.result.certificationIds);
+        this.recentlyAdded.markAdded('links', res.result.linkIds);
+        this.recentlyAdded.markAdded('skills', res.result.newUserSkillIds);
+
+        this.parseResult.set(res.result);
+        this.stage.set('done');
+        this.isUploading.set(false);
+      },
+      error: (err) => {
+        this.errorMessage.set(err.error?.error || 'Failed to add to profile. Please try again.');
+        this.isUploading.set(false);
+      }
+    });
+  }
+
   reset(): void {
     this.stage.set('upload');
     this.selectedFile.set(null);
     this.errorMessage.set('');
     this.parseResult.set(null);
+    this.parsedData.set(null);
+    this.links = [];
+    this.education = [];
+    this.experience = [];
+    this.projects = [];
+    this.newSkills = [];
+    this.certifications = [];
     this.isUploading.set(false);
   }
 

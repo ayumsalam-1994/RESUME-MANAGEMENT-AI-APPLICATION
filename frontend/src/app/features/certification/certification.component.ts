@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
@@ -7,6 +7,7 @@ import {
   Certification,
   CertificationService
 } from '../../core/services/certification.service';
+import { RecentlyAddedService } from '../../core/services/recently-added.service';
 
 @Component({
   selector: 'app-certifications',
@@ -78,7 +79,7 @@ import {
         @if (certificationService.certificationsSignal().length > 0) {
           <div class="cert-list">
             @for (cert of certificationService.certificationsSignal(); track cert.id) {
-              <div class="card">
+              <div class="card" [class.newly-added]="recentlyAdded.isNew('certifications', cert.id)">
                 <div class="card-header">
                   <div>
                     <h3>{{ cert.title }}</h3>
@@ -165,6 +166,25 @@ import {
     .cert-list {
       display: grid;
       gap: 12px;
+    }
+
+    .card.newly-added {
+      box-shadow: 0 0 0 2px #22c55e;
+      position: relative;
+
+      &::after {
+        content: 'New';
+        position: absolute;
+        top: -8px;
+        right: 8px;
+        background: #22c55e;
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 8px;
+        text-transform: uppercase;
+      }
     }
 
     .form-group {
@@ -305,7 +325,7 @@ import {
     }
   `,
 })
-export class CertificationComponent implements OnInit {
+export class CertificationComponent implements OnInit, OnDestroy {
   certForm!: FormGroup;
   isAddingNew = false;
   editingId: number | null = null;
@@ -313,12 +333,17 @@ export class CertificationComponent implements OnInit {
 
   constructor(
     public certificationService: CertificationService,
+    public recentlyAdded: RecentlyAddedService,
     private fb: FormBuilder
   ) {}
 
   ngOnInit(): void {
     this.initializeForm();
     this.loadCertifications();
+  }
+
+  ngOnDestroy(): void {
+    this.recentlyAdded.clear('certifications');
   }
 
   private initializeForm(): void {

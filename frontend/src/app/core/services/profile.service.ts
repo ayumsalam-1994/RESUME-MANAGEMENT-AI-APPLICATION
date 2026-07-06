@@ -2,18 +2,17 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { firstValueFrom } from 'rxjs';
+import { extractErrorMessage } from '../utils/error.util';
 
 export interface Profile {
   id: number;
   userId: number;
   email?: string;
   phone?: string;
-  linkedin?: string;
-  github?: string;
-  portfolio?: string;
   location?: string;
   summary?: string;
   educations: Education[];
+  profileLinks: ProfileLink[];
   createdAt: string;
   updatedAt: string;
   user?: {
@@ -35,6 +34,13 @@ export interface Education {
   current: boolean;
 }
 
+export interface ProfileLink {
+  id: number;
+  profileId: number;
+  type: string;
+  url: string;
+}
+
 export interface Skill {
   id: string;
   name: string;
@@ -42,6 +48,7 @@ export interface Skill {
 }
 
 export interface UserSkill {
+  id: number;
   userId: number;
   skillId: number;
   level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
@@ -57,9 +64,6 @@ export class ProfileService {
   private profileUpdateFields = [
     'email',
     'phone',
-    'linkedin',
-    'github',
-    'portfolio',
     'location',
     'summary',
   ] as const;
@@ -81,7 +85,7 @@ export class ProfileService {
       this.profileSignal.set(profile);
       return profile;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to load profile';
+      const message = extractErrorMessage(error, 'Failed to load profile');
       this.errorSignal.set(message);
       throw error;
     } finally {
@@ -91,7 +95,7 @@ export class ProfileService {
 
   // Update profile
   async updateProfile(
-    data: Partial<Omit<Profile, 'educations' | 'createdAt' | 'updatedAt' | 'id' | 'userId' | 'user'>> & { name?: string }
+    data: Partial<Omit<Profile, 'educations' | 'profileLinks' | 'createdAt' | 'updatedAt' | 'id' | 'userId' | 'user'>> & { name?: string }
   ): Promise<Profile> {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
@@ -113,7 +117,7 @@ export class ProfileService {
       this.profileSignal.set(updated);
       return updated;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to update profile';
+      const message = extractErrorMessage(error, 'Failed to update profile');
       this.errorSignal.set(message);
       throw error;
     } finally {
@@ -146,6 +150,31 @@ export class ProfileService {
   async deleteEducation(educationId: number): Promise<void> {
     await firstValueFrom(
       this.http.delete(`${this.apiUrl}/education/${educationId}`)
+    );
+  }
+
+  // Link Management
+  async addLink(data: Omit<ProfileLink, 'id' | 'profileId'>): Promise<ProfileLink> {
+    this.loadingSignal.set(true);
+
+    try {
+      return await firstValueFrom(
+        this.http.post<ProfileLink>(`${this.apiUrl}/links`, data)
+      );
+    } finally {
+      this.loadingSignal.set(false);
+    }
+  }
+
+  async updateLink(linkId: number, data: Partial<ProfileLink>): Promise<ProfileLink> {
+    return await firstValueFrom(
+      this.http.put<ProfileLink>(`${this.apiUrl}/links/${linkId}`, data)
+    );
+  }
+
+  async deleteLink(linkId: number): Promise<void> {
+    await firstValueFrom(
+      this.http.delete(`${this.apiUrl}/links/${linkId}`)
     );
   }
 

@@ -1,8 +1,9 @@
-import { Component, effect, OnInit } from '@angular/core';
+import { Component, effect, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ProfileService, Education } from '../../core/services/profile.service';
+import { ProfileService, Education, ProfileLink } from '../../core/services/profile.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RecentlyAddedService } from '../../core/services/recently-added.service';
 
 @Component({
   selector: 'app-profile',
@@ -49,21 +50,6 @@ import { AuthService } from '../../core/services/auth.service';
             </div>
 
             <div class="form-group">
-              <label>LinkedIn URL</label>
-              <input formControlName="linkedin" type="url" />
-            </div>
-
-            <div class="form-group">
-              <label>GitHub URL</label>
-              <input formControlName="github" type="url" />
-            </div>
-
-            <div class="form-group">
-              <label>Portfolio URL</label>
-              <input formControlName="portfolio" type="url" />
-            </div>
-
-            <div class="form-group">
               <label>Professional Summary</label>
               <textarea formControlName="summary" rows="4"></textarea>
             </div>
@@ -74,82 +60,160 @@ import { AuthService } from '../../core/services/auth.service';
           </form>
         </div>
 
+        <!-- Links Section -->
+        <div class="section">
+          <h3>Links</h3>
+
+          <div class="links-list">
+            @for (link of links; track link.id) {
+              <div class="link-item" [class.newly-added]="recentlyAdded.isNew('links', link.id)">
+                @if (!isEditingLink(link.id)) {
+                  <div class="link-row">
+                    <span class="link-type">{{ link.type }}</span>
+                    <a [href]="link.url" target="_blank" rel="noopener" class="link-url">{{ link.url }}</a>
+                    <div class="link-actions">
+                      <button (click)="editLink(link)">Edit</button>
+                      <button (click)="deleteLinkItem(link.id)" class="danger">Delete</button>
+                    </div>
+                  </div>
+                } @else {
+                  <form [formGroup]="linkForm!" (ngSubmit)="saveLink(link.id)">
+                    <div class="form-group">
+                      <label>Type</label>
+                      <select formControlName="type" (change)="onLinkTypeChange($event)">
+                        <option value="LinkedIn">LinkedIn</option>
+                        <option value="GitHub">GitHub</option>
+                        <option value="Portfolio">Portfolio</option>
+                        <option value="Custom">Custom</option>
+                      </select>
+                    </div>
+                    @if (showCustomLinkType) {
+                      <div class="form-group">
+                        <label>Custom Type Label</label>
+                        <input formControlName="customType" type="text" placeholder="e.g. Twitter, Behance" />
+                      </div>
+                    }
+                    <div class="form-group">
+                      <label>URL</label>
+                      <input formControlName="url" type="url" placeholder="https://..." />
+                    </div>
+                    <button type="submit" [disabled]="linkForm?.invalid">Save Link</button>
+                    <button type="button" (click)="cancelLinkEdit()">Cancel</button>
+                  </form>
+                }
+              </div>
+            } @empty {
+              <p class="muted">No links yet.</p>
+            }
+          </div>
+
+          @if (!isAddingLink && !isEditingLinkId) {
+            <button (click)="startAddLink()" class="secondary">+ Add Link</button>
+          }
+
+          @if (isAddingLink) {
+            <form [formGroup]="linkForm!" (ngSubmit)="saveNewLink()">
+              <div class="form-group">
+                <label>Type</label>
+                <select formControlName="type" (change)="onLinkTypeChange($event)">
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="GitHub">GitHub</option>
+                  <option value="Portfolio">Portfolio</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+              @if (showCustomLinkType) {
+                <div class="form-group">
+                  <label>Custom Type Label</label>
+                  <input formControlName="customType" type="text" placeholder="e.g. Twitter, Behance" />
+                </div>
+              }
+              <div class="form-group">
+                <label>URL</label>
+                <input formControlName="url" type="url" placeholder="https://..." />
+              </div>
+              <button type="submit" [disabled]="linkForm?.invalid">Add Link</button>
+              <button type="button" (click)="cancelLinkEdit()">Cancel</button>
+            </form>
+          }
+        </div>
+
         <!-- Education Section -->
         <div class="section">
           <h3>Education</h3>
 
-          @if (education && education.length > 0) {
-            <div class="education-list">
-              @for (edu of education; track edu.id) {
-                <div class="education-item">
-                  <div class="education-header">
-                    <strong>{{ edu.degree }} in {{ edu.field }}</strong>
-                    @if (!isEditingEducation(edu.id)) {
-                      <button (click)="editEducation(edu)">Edit</button>
-                      <button (click)="deleteEducationItem(edu.id)" class="danger">
-                        Delete
-                      </button>
-                    }
-                  </div>
-
-                  @if (isEditingEducation(edu.id)) {
-                    <form [formGroup]="educationForm!" (ngSubmit)="saveEducation(edu.id)">
-                      <div class="form-group">
-                        <label>Institution</label>
-                        <input formControlName="institution" type="text" />
-                        @if (controlInvalid('institution')) { <small class="error">Institution is required</small> }
-                      </div>
-
-                      <div class="form-group">
-                        <label>Degree</label>
-                        <input formControlName="degree" type="text" />
-                        @if (controlInvalid('degree')) { <small class="error">Degree is required</small> }
-                      </div>
-
-                      <div class="form-group">
-                        <label>Field of Study</label>
-                        <input formControlName="field" type="text" />
-                        @if (controlInvalid('field')) { <small class="error">Field is required</small> }
-                      </div>
-
-                      <div class="form-group">
-                        <label>Start Date</label>
-                        <input formControlName="startDate" type="date" />
-                        @if (controlInvalid('startDate')) { <small class="error">Start date is required</small> }
-                      </div>
-
-                      <div class="form-group">
-                        <label>End Date</label>
-                        <input formControlName="endDate" type="date" />
-                      </div>
-
-                      <div class="form-group checkbox">
-                        <label>
-                          <input formControlName="current" type="checkbox" />
-                          Currently Studying
-                        </label>
-                      </div>
-
-                      <button type="submit" [disabled]="educationForm?.invalid">Save Education</button>
-                      <button type="button" (click)="cancelEducationEdit()">
-                        Cancel
-                      </button>
-                    </form>
-                  } @else {
-                    <p>{{ edu.institution }}</p>
-                    <p>
-                      {{ edu.startDate | date: 'MMM yyyy' }} -
-                      @if (edu.current) {
-                        Present
-                      } @else {
-                        {{ edu.endDate | date: 'MMM yyyy' }}
-                      }
-                    </p>
+          <div class="education-list">
+            @for (edu of education; track edu.id) {
+              <div class="education-item" [class.newly-added]="recentlyAdded.isNew('education', edu.id)">
+                <div class="education-header">
+                  <strong>{{ edu.degree }} in {{ edu.field }}</strong>
+                  @if (!isEditingEducation(edu.id)) {
+                    <button (click)="editEducation(edu)">Edit</button>
+                    <button (click)="deleteEducationItem(edu.id)" class="danger">
+                      Delete
+                    </button>
                   }
                 </div>
-              }
-            </div>
-          }
+
+                @if (isEditingEducation(edu.id)) {
+                  <form [formGroup]="educationForm!" (ngSubmit)="saveEducation(edu.id)">
+                    <div class="form-group">
+                      <label>Institution</label>
+                      <input formControlName="institution" type="text" />
+                      @if (controlInvalid('institution')) { <small class="error">Institution is required</small> }
+                    </div>
+
+                    <div class="form-group">
+                      <label>Degree</label>
+                      <input formControlName="degree" type="text" />
+                      @if (controlInvalid('degree')) { <small class="error">Degree is required</small> }
+                    </div>
+
+                    <div class="form-group">
+                      <label>Field of Study</label>
+                      <input formControlName="field" type="text" />
+                      @if (controlInvalid('field')) { <small class="error">Field is required</small> }
+                    </div>
+
+                    <div class="form-group">
+                      <label>Start Date</label>
+                      <input formControlName="startDate" type="date" />
+                      @if (controlInvalid('startDate')) { <small class="error">Start date is required</small> }
+                    </div>
+
+                    <div class="form-group">
+                      <label>End Date</label>
+                      <input formControlName="endDate" type="date" />
+                    </div>
+
+                    <div class="form-group checkbox">
+                      <label>
+                        <input formControlName="current" type="checkbox" />
+                        Currently Studying
+                      </label>
+                    </div>
+
+                    <button type="submit" [disabled]="educationForm?.invalid">Save Education</button>
+                    <button type="button" (click)="cancelEducationEdit()">
+                      Cancel
+                    </button>
+                  </form>
+                } @else {
+                  <p>{{ edu.institution }}</p>
+                  <p>
+                    {{ edu.startDate | date: 'MMM yyyy' }} -
+                    @if (edu.current) {
+                      Present
+                    } @else {
+                      {{ edu.endDate | date: 'MMM yyyy' }}
+                    }
+                  </p>
+                }
+              </div>
+            } @empty {
+              <p class="muted">No education entries yet.</p>
+            }
+          </div>
 
           @if (!isAddingEducation && !isEditingEducationId) {
             <button (click)="startAddEducation()" class="secondary">
@@ -204,22 +268,22 @@ import { AuthService } from '../../core/services/auth.service';
         <div class="section">
           <h3>Skills</h3>
 
-          @if (profileService.skillsSignal().length > 0) {
-            <div class="skills-list">
-              @for (userSkill of profileService.skillsSignal(); track userSkill.skillId) {
-                <div class="skill-badge">
-                  <span>{{ userSkill.skill.name }}</span>
-                  <button
-                    (click)="removeSkill(userSkill.skillId)"
-                    class="remove-btn"
-                    type="button"
-                  >
-                    ×
-                  </button>
-                </div>
-              }
-            </div>
-          }
+          <div class="skills-list">
+            @for (userSkill of profileService.skillsSignal(); track userSkill.skillId) {
+              <div class="skill-badge" [class.newly-added]="recentlyAdded.isNew('skills', userSkill.id)">
+                <span>{{ userSkill.skill.name }}</span>
+                <button
+                  (click)="removeSkill(userSkill.skillId)"
+                  class="remove-btn"
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+            } @empty {
+              <p class="muted">No skills added yet.</p>
+            }
+          </div>
 
           @if (!isAddingSkill) {
             <button (click)="startAddSkill()" class="secondary">+ Add Skill</button>
@@ -376,6 +440,75 @@ import { AuthService } from '../../core/services/auth.service';
       color: #666;
     }
 
+    .links-list {
+      margin-bottom: 20px;
+    }
+
+    .link-item {
+      padding: 12px 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    .link-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .link-type {
+      font-weight: 600;
+      min-width: 80px;
+    }
+
+    .link-url {
+      flex: 1;
+      color: #007bff;
+      text-decoration: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    .link-actions {
+      display: flex;
+      gap: 8px;
+
+      button {
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+    }
+
+    .muted {
+      color: #777;
+    }
+
+    .newly-added {
+      box-shadow: 0 0 0 2px #22c55e;
+      position: relative;
+
+      &::after {
+        content: 'New';
+        position: absolute;
+        top: -8px;
+        right: 8px;
+        background: #22c55e;
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 8px;
+        text-transform: uppercase;
+      }
+    }
+
     .skills-list {
       display: flex;
       flex-wrap: wrap;
@@ -488,6 +621,24 @@ import { AuthService } from '../../core/services/auth.service';
         }
       }
 
+      .link-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .link-url {
+        max-width: 100%;
+      }
+
+      .link-actions {
+        width: 100%;
+
+        button {
+          flex: 1;
+        }
+      }
+
       .skills-list {
         gap: 8px;
       }
@@ -524,20 +675,26 @@ import { AuthService } from '../../core/services/auth.service';
     }
   `,
 })
-export class ProfileComponent implements OnInit {
+export class ProfileComponent implements OnInit, OnDestroy {
   profileForm: FormGroup | null = null;
   educationForm: FormGroup | null = null;
+  linkForm: FormGroup | null = null;
   skillForm: FormGroup | null = null;
 
   isAddingEducation = false;
   isEditingEducationId: number | null = null;
+  isAddingLink = false;
+  isEditingLinkId: number | null = null;
+  showCustomLinkType = false;
   isAddingSkill = false;
 
   education: Education[] = [];
+  links: ProfileLink[] = [];
 
   constructor(
     public profileService: ProfileService,
     private authService: AuthService,
+    public recentlyAdded: RecentlyAddedService,
     private fb: FormBuilder
   ) {
     // Auto-load profile data when component initializes
@@ -546,6 +703,7 @@ export class ProfileComponent implements OnInit {
       if (profile) {
         this.populateProfileForm(profile);
         this.education = profile.educations || [];
+        this.links = profile.profileLinks || [];
       }
     });
   }
@@ -555,15 +713,18 @@ export class ProfileComponent implements OnInit {
     this.loadProfile();
   }
 
+  ngOnDestroy(): void {
+    this.recentlyAdded.clear('education');
+    this.recentlyAdded.clear('links');
+    this.recentlyAdded.clear('skills');
+  }
+
   private initializeForms(): void {
     this.profileForm = this.fb.group({
       name: ['', Validators.required],
       email: [''],
       location: [''],
       phone: [''],
-      linkedin: [''],
-      github: [''],
-      portfolio: [''],
       summary: [''],
     });
 
@@ -574,6 +735,12 @@ export class ProfileComponent implements OnInit {
       startDate: ['', Validators.required],
       endDate: [''],
       current: [false],
+    });
+
+    this.linkForm = this.fb.group({
+      type: ['LinkedIn', Validators.required],
+      customType: [''],
+      url: ['', [Validators.required, Validators.pattern(/^https?:\/\/.+/)]],
     });
 
     this.skillForm = this.fb.group({
@@ -589,9 +756,6 @@ export class ProfileComponent implements OnInit {
         email: profile.email || '',
         location: profile.location || '',
         phone: profile.phone || '',
-        linkedin: profile.linkedin || '',
-        github: profile.github || '',
-        portfolio: profile.portfolio || '',
         summary: profile.summary || '',
       });
     }
@@ -719,6 +883,96 @@ export class ProfileComponent implements OnInit {
 
   isEditingEducation(educationId: number): boolean {
     return this.isEditingEducationId === educationId;
+  }
+
+  startAddLink(): void {
+    this.isAddingLink = true;
+    this.showCustomLinkType = false;
+    this.linkForm?.reset({ type: 'LinkedIn', customType: '', url: '' });
+  }
+
+  editLink(link: ProfileLink): void {
+    this.isEditingLinkId = link.id;
+    const isKnownType = ['LinkedIn', 'GitHub', 'Portfolio'].includes(link.type);
+    this.showCustomLinkType = !isKnownType;
+    this.linkForm?.patchValue({
+      type: isKnownType ? link.type : 'Custom',
+      customType: isKnownType ? '' : link.type,
+      url: link.url,
+    });
+  }
+
+  onLinkTypeChange(event: Event): void {
+    this.showCustomLinkType = (event.target as HTMLSelectElement).value === 'Custom';
+  }
+
+  private buildLinkPayload(): { type: string; url: string } {
+    const formValue = this.linkForm!.value;
+    const type = formValue.type === 'Custom' ? (formValue.customType || 'Custom').trim() : formValue.type;
+    return { type, url: formValue.url };
+  }
+
+  async saveLink(linkId: number): Promise<void> {
+    if (!this.linkForm?.valid) return;
+    this.linkForm?.markAllAsTouched();
+
+    try {
+      const payload = this.buildLinkPayload();
+      const updated = await this.profileService.updateLink(linkId, payload);
+      const list = this.links.map((l) => (l.id === linkId ? updated : l));
+      this.setLocalLinks(list);
+      this.cancelLinkEdit();
+      alert('Link updated successfully!');
+    } catch (error) {
+      console.error('Failed to save link:', error);
+      alert('Failed to update link. Please check the console for details.');
+    }
+  }
+
+  async saveNewLink(): Promise<void> {
+    if (!this.linkForm?.valid) return;
+    this.linkForm?.markAllAsTouched();
+
+    try {
+      const payload = this.buildLinkPayload();
+      const created = await this.profileService.addLink(payload);
+      const list = [...this.links, created];
+      this.setLocalLinks(list);
+      this.cancelLinkEdit();
+      alert('Link added successfully!');
+    } catch (error) {
+      console.error('Failed to add link:', error);
+      alert('Failed to add link. Please check the console for details.');
+    }
+  }
+
+  async deleteLinkItem(linkId: number): Promise<void> {
+    if (!confirm('Are you sure you want to delete this link?')) return;
+
+    try {
+      await this.profileService.deleteLink(linkId);
+      const list = this.links.filter((l) => l.id !== linkId);
+      this.setLocalLinks(list);
+      alert('Link deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete link:', error);
+    }
+  }
+
+  cancelLinkEdit(): void {
+    this.isAddingLink = false;
+    this.isEditingLinkId = null;
+    this.showCustomLinkType = false;
+    this.linkForm?.reset({ type: 'LinkedIn', customType: '', url: '' });
+  }
+
+  isEditingLink(linkId: number): boolean {
+    return this.isEditingLinkId === linkId;
+  }
+
+  private setLocalLinks(list: ProfileLink[]): void {
+    this.links = list;
+    this.profileService.profileSignal.update((p) => (p ? { ...p, profileLinks: list } : p));
   }
 
   startAddSkill(): void {

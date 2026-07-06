@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { Company } from './company.service';
 import { environment } from '../../../environments/environment';
+import { extractErrorMessage } from '../utils/error.util';
 
 const API_URL = `${environment.apiUrl}/job-applications`;
 
@@ -68,7 +69,7 @@ export class JobApplicationService {
       this.applicationsSignal.set(applications);
       return applications;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to load applications';
+      const message = extractErrorMessage(error, 'Failed to load applications');
       this.errorSignal.set(message);
       throw error;
     } finally {
@@ -93,7 +94,7 @@ export class JobApplicationService {
       this.applicationsSignal.update((list) => [application, ...list]);
       return application;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to create application';
+      const message = extractErrorMessage(error, 'Failed to create application');
       this.errorSignal.set(message);
       throw error;
     } finally {

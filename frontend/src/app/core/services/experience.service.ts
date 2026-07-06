@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { extractErrorMessage } from '../utils/error.util';
 
 const API_URL = `${environment.apiUrl}/experiences`;
 
@@ -49,7 +50,7 @@ export class ExperienceService {
       this.experiencesSignal.set(experiences);
       return experiences;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to load experiences';
+      const message = extractErrorMessage(error, 'Failed to load experiences');
       this.errorSignal.set(message);
       throw error;
     } finally {

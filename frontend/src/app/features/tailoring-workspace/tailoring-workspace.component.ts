@@ -9,6 +9,7 @@ import { AuthService, SubscriptionStatus } from '../../core/services/auth.servic
 import { ProfileService } from '../../core/services/profile.service';
 import { ExperienceService } from '../../core/services/experience.service';
 import { ProjectService } from '../../core/services/project.service';
+import { extractErrorMessage } from '../../core/utils/error.util';
 
 type SectionKey = 'summary' | 'skills' | 'experience' | 'projects';
 
@@ -596,7 +597,7 @@ export class TailoringWorkspaceComponent implements OnInit {
       this.dirty.set(false);
       this.showToast('Resume tailored successfully!');
     } catch (error: any) {
-      const msg = error?.error?.error || error?.message || 'Failed to tailor resume';
+      const msg = extractErrorMessage(error, 'Failed to tailor resume');
       alert(`Tailoring failed: ${msg}`);
     } finally {
       this.tailoring.set(false);
@@ -614,7 +615,7 @@ export class TailoringWorkspaceComponent implements OnInit {
       this.dirty.set(false);
       this.showToast('Fit analysis updated!');
     } catch (error: any) {
-      const msg = error?.error?.error || error?.message || 'Failed to analyze resume';
+      const msg = extractErrorMessage(error, 'Failed to analyze resume');
       alert(`Re-check Fit failed: ${msg}`);
     } finally {
       this.reanalyzing.set(false);
@@ -635,7 +636,7 @@ export class TailoringWorkspaceComponent implements OnInit {
       );
       this.dirty.set(true);
     } catch (error: any) {
-      const msg = error?.error?.error || error?.message || 'Failed to regenerate section';
+      const msg = extractErrorMessage(error, 'Failed to regenerate section');
       alert(`Regeneration failed: ${msg}`);
     } finally {
       this.sectionBusy[key] = false;
@@ -661,7 +662,7 @@ export class TailoringWorkspaceComponent implements OnInit {
       this.dirty.set(false);
       this.showToast('Version restored as current.');
     } catch (error: any) {
-      const msg = error?.error?.error || error?.message || 'Failed to restore version';
+      const msg = extractErrorMessage(error, 'Failed to restore version');
       alert(`Restore failed: ${msg}`);
     } finally {
       this.restoringId = null;
@@ -728,9 +729,7 @@ export class TailoringWorkspaceComponent implements OnInit {
     "location": "City, Country",
     "phone": "",
     "email": "",
-    "linkedin": "",
-    "github": "",
-    "portfolio": ""
+    "links": [{ "type": "LinkedIn | GitHub | Portfolio | custom label", "url": "" }]
   },
   "summary": "2-3 sentence professional summary tailored to the job",
   "skills": ["skill1", "skill2", "skill3"],
@@ -782,7 +781,7 @@ Guidelines:
       await this.loadResumes();
       alert('Legacy resume generated (content only, no analysis).');
     } catch (error: any) {
-      const msg = error?.error?.error || error?.message || 'Failed to generate resume';
+      const msg = extractErrorMessage(error, 'Failed to generate resume');
       alert(`Legacy generation failed: ${msg}`);
     } finally {
       this.legacyGenerating = false;
@@ -804,9 +803,11 @@ Guidelines:
         profileSection += `Email: ${profile.email || profile.user?.email || 'Not specified'}\n`;
         profileSection += `Phone: ${profile.phone || 'Not specified'}\n`;
         profileSection += `Location: ${profile.location || 'Not specified'}\n`;
-        profileSection += `LinkedIn: ${profile.linkedin || 'Not specified'}\n`;
-        profileSection += `GitHub: ${profile.github || 'Not specified'}\n`;
-        profileSection += `Portfolio: ${profile.portfolio || 'Not specified'}\n`;
+        if (profile.profileLinks && profile.profileLinks.length > 0) {
+          profile.profileLinks.forEach((link) => {
+            profileSection += `${link.type}: ${link.url}\n`;
+          });
+        }
         if (profile.summary) {
           profileSection += `\nProfessional Summary:\n${profile.summary}\n`;
         }
@@ -910,7 +911,7 @@ ${instructions}`;
       this.cancelImport();
       alert('Resume imported successfully!');
     } catch (error: any) {
-      const msg = error?.error?.error || error?.message || 'Failed to import resume.';
+      const msg = extractErrorMessage(error, 'Failed to import resume.');
       alert(`Import failed: ${msg}`);
     }
   }

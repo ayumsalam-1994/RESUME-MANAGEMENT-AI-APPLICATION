@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, finalize, shareReplay, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type {
   AuthResponse,
@@ -106,6 +106,24 @@ export class AuthService {
         this.setAccessToken(response.accessToken);
       })
     );
+  }
+
+  private refreshInFlight$: Observable<RefreshResponse> | null = null;
+
+  /**
+   * Same as refreshToken(), but coordinates concurrent callers (e.g. several
+   * requests failing with 401 at once) so only one actual refresh call is made.
+   */
+  refreshTokenShared(): Observable<RefreshResponse> {
+    if (!this.refreshInFlight$) {
+      this.refreshInFlight$ = this.refreshToken().pipe(
+        shareReplay(1),
+        finalize(() => {
+          this.refreshInFlight$ = null;
+        })
+      );
+    }
+    return this.refreshInFlight$;
   }
 
   /**

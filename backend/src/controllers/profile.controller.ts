@@ -6,9 +6,6 @@ import { z } from 'zod';
 const ProfileUpdateSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional(),
-  linkedin: z.string().url().optional(),
-  github: z.string().url().optional(),
-  portfolio: z.string().url().optional(),
   location: z.string().optional(),
   summary: z.string().optional(),
   name: z.string().min(1).optional(),
@@ -21,6 +18,11 @@ const EducationSchema = z.object({
   startDate: z.string(),
   endDate: z.string().optional().nullable(),
   current: z.boolean().optional().default(false),
+});
+
+const ProfileLinkSchema = z.object({
+  type: z.string().min(1),
+  url: z.string().url(),
 });
 
 const SkillSchema = z.object({
@@ -172,6 +174,91 @@ export async function deleteEducation(req: Request, res: Response) {
     res.json({ success: true });
   } catch (error: any) {
     if (error.message === 'Education not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Get user links
+export async function getUserLinks(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const links = await profileService.getUserLinks(userId);
+    res.json(links);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Add link
+export async function addLink(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const validated = ProfileLinkSchema.parse(req.body);
+    const link = await profileService.addLink(userId, validated);
+
+    res.status(201).json(link);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Update link
+export async function updateLink(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const linkId = Number(req.params.linkId);
+    if (Number.isNaN(linkId)) {
+      return res.status(400).json({ error: 'Invalid link id' });
+    }
+
+    const validated = ProfileLinkSchema.partial().parse(req.body);
+    const link = await profileService.updateLink(linkId, userId, validated);
+    res.json(link);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    if (error.message === 'Link not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Delete link
+export async function deleteLink(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const linkId = Number(req.params.linkId);
+    if (Number.isNaN(linkId)) {
+      return res.status(400).json({ error: 'Invalid link id' });
+    }
+
+    await profileService.deleteLink(linkId, userId);
+    res.json({ success: true });
+  } catch (error: any) {
+    if (error.message === 'Link not found') {
       return res.status(404).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });

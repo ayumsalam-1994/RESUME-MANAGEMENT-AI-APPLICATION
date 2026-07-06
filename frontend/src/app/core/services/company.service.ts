@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { extractErrorMessage } from '../utils/error.util';
 
 const API_URL = `${environment.apiUrl}/companies`;
 
@@ -44,7 +45,7 @@ export class CompanyService {
       this.companiesSignal.set(companies);
       return companies;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to load companies';
+      const message = extractErrorMessage(error, 'Failed to load companies');
       this.errorSignal.set(message);
       throw error;
     } finally {
@@ -69,7 +70,7 @@ export class CompanyService {
       this.companiesSignal.update((list) => [...list, company].sort((a, b) => a.name.localeCompare(b.name)));
       return company;
     } catch (error: any) {
-      const message = error.error?.error || 'Failed to create company';
+      const message = extractErrorMessage(error, 'Failed to create company');
       this.errorSignal.set(message);
       throw error;
     } finally {

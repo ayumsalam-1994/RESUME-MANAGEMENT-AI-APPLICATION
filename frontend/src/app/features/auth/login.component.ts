@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { extractErrorMessage } from '../../core/utils/error.util';
 
 @Component({
   selector: 'app-login',
@@ -199,6 +200,12 @@ export class LoginComponent {
     password: ['', [Validators.required]]
   });
 
+  constructor() {
+    if (this.route.snapshot.queryParamMap.get('sessionExpired') === '1') {
+      this.errorMessage.set('Your session expired. Please log in again.');
+    }
+  }
+
   onSubmit(): void {
     if (this.loginForm.invalid) return;
 
@@ -213,7 +220,7 @@ export class LoginComponent {
       },
       error: (error) => {
         this.isLoading.set(false);
-        this.errorMessage.set(error.error?.error || 'Login failed. Please try again.');
+        this.errorMessage.set(extractErrorMessage(error, 'Login failed. Please try again.'));
       }
     });
   }

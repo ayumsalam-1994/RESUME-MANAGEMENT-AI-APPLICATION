@@ -8,6 +8,10 @@ import {
   addEducation,
   updateEducation,
   deleteEducation,
+  getUserLinks,
+  addLink,
+  updateLink,
+  deleteLink,
   getUserSkills,
   addSkill,
   removeSkill,
@@ -16,7 +20,7 @@ import {
   getCustomPrompt,
   saveCustomPrompt,
 } from '../controllers/profile.controller';
-import { parseResume } from '../controllers/resumeParser.controller';
+import { parseResume, commitParsedResume } from '../controllers/resumeParser.controller';
 
 const resumeUpload = multer({
   storage: multer.memoryStorage(),
@@ -39,8 +43,9 @@ const router = Router();
 // All profile routes require authentication
 router.use(authenticate);
 
-// Resume parse → auto-populate profile (onboarding)
+// Resume parse (no DB writes, returns data for review) + commit (writes reviewed data)
 router.post('/parse-resume', resumeUpload.single('resume'), parseResume);
+router.post('/commit-resume-data', commitParsedResume);
 
 // Profile routes
 router.get('/', getProfile);
@@ -55,6 +60,12 @@ router.get('/education', getUserEducation);
 router.post('/education', addEducation);
 router.put('/education/:educationId', updateEducation);
 router.delete('/education/:educationId', deleteEducation);
+
+// Link routes
+router.get('/links', getUserLinks);
+router.post('/links', addLink);
+router.put('/links/:linkId', updateLink);
+router.delete('/links/:linkId', deleteLink);
 
 // Skill routes
 router.get('/skills', getUserSkills);
